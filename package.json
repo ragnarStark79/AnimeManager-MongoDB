@@ -1,0 +1,33 @@
+{
+  "name": "animemanager-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal Media Library for anime, manga, and manhwa",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:api": "npm --prefix apps/api run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "healthcheck": "node scripts/healthcheck.js",
+    "build": "npm run --workspaces --if-present build",
+    "typecheck": "npm run --workspaces --if-present typecheck",
+    "lint": "npm run --workspaces --if-present lint",
+    "test": "npm run --workspaces --if-present test",
+    "test:api": "npm --prefix apps/api test",
+    "test:atlas": "npm --prefix apps/api run test:atlas",
+    "test:metadata:live": "node scripts/test-tenrai-live.js",
+    "test:tenrai:live": "node scripts/test-tenrai-live.js",
+    "test:jikan:live": "node scripts/test-jikan-live.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.7.5"
+  }
+}
