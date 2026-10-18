@@ -8,7 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "node -e \"console.log('@animemanager/api: lint passed cleanly')\"",
-    "test": "NODE_ENV=test MONGODB_URI=mongodb://127.0.0.1:27017/animemanager_test node --test --test-concurrency=1 test/auth.test.js test/bookmarks.test.js test/collections.test.js test/connectivity-regression.test.js test/export.test.js test/hardening.test.js test/import-api.test.js test/titles.test.js",
+    "test": "NODE_ENV=test MONGODB_URI=mongodb://127.0.0.1:27017/animemanager_test node --test --test-concurrency=1 test/config-safeguards.test.js test/health.test.js test/init-indexes.test.js test/auth.test.js test/bookmarks.test.js test/collections.test.js test/connectivity-regression.test.js test/export.test.js test/hardening.test.js test/import-api.test.js test/titles.test.js",
     "test:atlas": "NODE_ENV=test node --test test/atlas-integration.test.js",
     "dev": "node --watch dist/server.js",
     "start": "node dist/server.js"
