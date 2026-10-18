@@ -239,6 +239,43 @@ test('Dev Auth: POST /api/v1/auth/dev-token strictly ignores injected owner para
   assert.equal(res.body.data.ownerId, TEST_OWNER_A);
 });
 
+test('Dev Auth (Remediation E): Returns 404 NOT_FOUND when ENABLE_DEV_AUTH is false', async () => {
+  const { config } = await import('../dist/config/index.js');
+  const prevSetting = config.ENABLE_DEV_AUTH;
+  config.ENABLE_DEV_AUTH = false;
+
+  try {
+    const res = await request(app).get('/api/v1/auth/dev-session');
+    assert.equal(res.status, 404);
+    assert.equal(res.body.error.code, 'NOT_FOUND');
+    assert.equal(res.body.data, undefined);
+  } finally {
+    config.ENABLE_DEV_AUTH = prevSetting;
+  }
+});
+
+test('Dev Auth (Remediation E): Returns 404 NOT_FOUND when NODE_ENV is production', async () => {
+  const { config } = await import('../dist/config/index.js');
+  const prevEnv = config.NODE_ENV;
+  // @ts-ignore - simulate production runtime
+  config.NODE_ENV = 'production';
+
+  try {
+    const getRes = await request(app).get('/api/v1/auth/dev-session');
+    assert.equal(getRes.status, 404);
+    assert.equal(getRes.body.error.code, 'NOT_FOUND');
+    assert.equal(getRes.body.data, undefined);
+
+    const postRes = await request(app).post('/api/v1/auth/dev-token');
+    assert.equal(postRes.status, 404);
+    assert.equal(postRes.body.error.code, 'NOT_FOUND');
+    assert.equal(postRes.body.data, undefined);
+  } finally {
+    // @ts-ignore
+    config.NODE_ENV = prevEnv;
+  }
+});
+
 test('Authentication: Expired token returns specific error detail', async () => {
   const expiredToken = createToken(TEST_OWNER_A, { expiresIn: '-10s' });
   const res = await request(app)

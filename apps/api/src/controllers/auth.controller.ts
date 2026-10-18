@@ -10,6 +10,7 @@ export const authController = {
     try {
       // Security Boundary: Dev auth is strictly forbidden in production or when disabled
       const isDevAuthEnabled =
+        config.NODE_ENV !== 'production' &&
         (config.NODE_ENV === 'development' || config.NODE_ENV === 'test') &&
         config.ENABLE_DEV_AUTH !== false;
 
