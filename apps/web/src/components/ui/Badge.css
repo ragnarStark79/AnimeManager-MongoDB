@@ -1,0 +1,76 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+/* ── Sizes ───────────────────────────────────────────────────── */
+.badge--sm {
+  height: 18px;
+  padding: 0 var(--space-2);
+  font-size: 10px;
+}
+.badge--md {
+  height: 22px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+/* ── Variants ────────────────────────────────────────────────── */
+.badge--default {
+  background: var(--glass-mid);
+  color: var(--text-secondary);
+  border-color: var(--glass-border);
+}
+.badge--primary {
+  background: hsla(215, 90%, 60%, 0.15);
+  color: var(--accent-primary-bright);
+  border-color: hsla(215, 90%, 60%, 0.25);
+}
+.badge--secondary {
+  background: hsla(260, 70%, 65%, 0.15);
+  color: var(--accent-secondary);
+  border-color: hsla(260, 70%, 65%, 0.25);
+}
+.badge--success {
+  background: hsla(155, 70%, 48%, 0.14);
+  color: var(--accent-success);
+  border-color: hsla(155, 70%, 48%, 0.25);
+}
+.badge--warning {
+  background: hsla(40, 95%, 55%, 0.14);
+  color: var(--accent-warning);
+  border-color: hsla(40, 95%, 55%, 0.25);
+}
+.badge--danger {
+  background: hsla(355, 78%, 58%, 0.14);
+  color: var(--accent-danger);
+  border-color: hsla(355, 78%, 58%, 0.25);
+}
+.badge--info {
+  background: hsla(195, 80%, 55%, 0.14);
+  color: var(--accent-info);
+  border-color: hsla(195, 80%, 55%, 0.25);
+}
+
+/* ── Media type specific ─────────────────────────────────────── */
+.badge--anime {
+  background: hsla(215, 80%, 55%, 0.16);
+  color: hsl(210, 100%, 72%);
+  border-color: hsla(215, 80%, 55%, 0.28);
+}
+.badge--manga {
+  background: hsla(35, 90%, 55%, 0.14);
+  color: hsl(35, 100%, 68%);
+  border-color: hsla(35, 90%, 55%, 0.28);
+}
+.badge--manhwa {
+  background: hsla(155, 65%, 45%, 0.14);
+  color: hsl(155, 80%, 60%);
+  border-color: hsla(155, 65%, 45%, 0.28);
+}

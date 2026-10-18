@@ -1,0 +1,21 @@
+.glass-card-component {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Padding variants ────────────────────────────────────────── */
+.glass-card-component--pad-none { padding: 0; }
+.glass-card-component--pad-sm   { padding: var(--space-4); }
+.glass-card-component--pad-md   { padding: var(--space-6); }
+.glass-card-component--pad-lg   { padding: var(--space-8); }
+
+/* ── Interactive override ─────────────────────────────────────── */
+.glass-card-component--interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.glass-card-component--interactive:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}

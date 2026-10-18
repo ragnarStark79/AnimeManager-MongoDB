@@ -1,0 +1,217 @@
+/* TitlesPage ── full catalog layout */
+
+.titles-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ── Header ── */
+.titles-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.titles-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* ── Demo notice ── */
+.titles-demo-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: hsla(215, 90%, 60%, 0.06);
+  border: 1px solid hsla(215, 90%, 60%, 0.15);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  line-height: var(--leading-normal);
+}
+
+.titles-demo-notice svg {
+  flex-shrink: 0;
+  color: var(--accent-primary-bright);
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+.titles-demo-notice strong {
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+/* ── Controls bar ── */
+.titles-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.titles-search-wrap {
+  flex: 1;
+  min-width: 200px;
+}
+
+.titles-search-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.titles-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-tertiary);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.titles-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--space-10) 0 calc(var(--space-3) + 16px + var(--space-2));
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  /* Remove native search cancel */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.titles-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.titles-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.titles-search-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background: var(--glass-mid);
+}
+
+.titles-search-clear {
+  position: absolute;
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-mid);
+  border: 1px solid var(--glass-border);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.titles-search-clear:hover {
+  background: var(--glass-strong);
+  color: var(--text-primary);
+}
+
+.titles-search-clear:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.titles-controls-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* ── Results meta row ── */
+.titles-results-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 20px;
+}
+
+.titles-results-count {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.titles-reset-btn {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-primary-bright);
+  cursor: pointer;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  transition: opacity var(--transition-fast);
+}
+
+.titles-reset-btn:hover {
+  opacity: 0.75;
+}
+
+/* ── Catalog grid ── */
+.titles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+/* ── Empty actions ── */
+.titles-empty-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .titles-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .titles-controls-right {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .titles-controls-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  .titles-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: var(--space-3);
+  }
+
+  .titles-header-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .titles-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+}

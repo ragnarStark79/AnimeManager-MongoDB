@@ -1,0 +1,153 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  user-select: none;
+}
+
+/* ── Sizes ───────────────────────────────────────────────────── */
+.btn--sm {
+  height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-md);
+  gap: var(--space-1);
+}
+.btn--md {
+  height: 38px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-sm);
+}
+.btn--lg {
+  height: 46px;
+  padding: 0 var(--space-8);
+  font-size: var(--text-base);
+  border-radius: var(--radius-xl);
+}
+
+.btn--full {
+  width: 100%;
+}
+
+/* ── Variants ────────────────────────────────────────────────── */
+
+/* Primary: gradient */
+.btn--primary {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 12px var(--accent-primary-glow);
+}
+.btn--primary:hover:not(:disabled) {
+  box-shadow: 0 4px 24px var(--accent-primary-glow);
+  transform: translateY(-1px);
+}
+.btn--primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px var(--accent-primary-glow);
+}
+
+/* Secondary: glass */
+.btn--secondary {
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  color: var(--text-primary);
+  border-color: var(--glass-border);
+}
+.btn--secondary:hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn--secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Ghost: transparent */
+.btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.btn--ghost:hover:not(:disabled) {
+  background: var(--glass-light);
+  color: var(--text-primary);
+}
+
+/* Danger */
+.btn--danger {
+  background: hsla(355, 78%, 58%, 0.15);
+  color: var(--accent-danger);
+  border-color: hsla(355, 78%, 58%, 0.25);
+}
+.btn--danger:hover:not(:disabled) {
+  background: hsla(355, 78%, 58%, 0.25);
+  border-color: hsla(355, 78%, 58%, 0.45);
+  box-shadow: 0 0 16px hsla(355, 78%, 58%, 0.20);
+}
+
+/* Success */
+.btn--success {
+  background: hsla(155, 70%, 48%, 0.15);
+  color: var(--accent-success);
+  border-color: hsla(155, 70%, 48%, 0.25);
+}
+.btn--success:hover:not(:disabled) {
+  background: hsla(155, 70%, 48%, 0.25);
+  border-color: hsla(155, 70%, 48%, 0.45);
+}
+
+/* ── Disabled ─────────────────────────────────────────────────── */
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Loading ─────────────────────────────────────────────────── */
+.btn--loading {
+  cursor: wait;
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* ── Icon ─────────────────────────────────────────────────────── */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Focus ─────────────────────────────────────────────────────── */
+.btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}

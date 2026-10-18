@@ -1,0 +1,64 @@
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  border-radius: var(--radius-2xl);
+}
+
+.loading-state--sm {
+  padding: var(--space-6) var(--space-4);
+  gap: var(--space-2);
+}
+
+.loading-state--lg {
+  padding: var(--space-20) var(--space-8);
+  min-height: 50vh;
+}
+
+.loading-state-spinner {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-state--sm .loading-state-spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.loading-state-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--glass-border);
+  border-top-color: var(--accent-primary-bright);
+  animation: spin 0.9s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+}
+
+.loading-state-orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-primary-bright), var(--accent-primary));
+  box-shadow: 0 0 12px var(--accent-primary-glow);
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+.loading-state--sm .loading-state-orb {
+  width: 8px;
+  height: 8px;
+}
+
+.loading-state-text {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  letter-spacing: var(--tracking-normal);
+}

@@ -1,0 +1,98 @@
+/* FilterChips — reusable accessible filter chip row */
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  line-height: 1;
+  height: 34px;
+}
+
+.filter-chip:hover {
+  color: var(--text-primary);
+  background: var(--glass-mid);
+  border-color: var(--glass-border-hover);
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.filter-chip--active {
+  color: hsl(210, 100%, 82%);
+  background: hsla(215, 90%, 60%, 0.16);
+  border-color: hsla(215, 90%, 60%, 0.35);
+  box-shadow: 0 0 10px hsla(215, 90%, 60%, 0.12);
+}
+
+.filter-chip--active:hover {
+  background: hsla(215, 90%, 60%, 0.22);
+  border-color: hsla(215, 90%, 60%, 0.50);
+}
+
+.filter-chip-icon {
+  display: flex;
+  align-items: center;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.filter-chip-label {
+  color: inherit;
+}
+
+.filter-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  background: var(--glass-mid);
+  color: var(--text-tertiary);
+}
+
+.filter-chip--active .filter-chip-count {
+  background: hsla(215, 90%, 60%, 0.25);
+  color: hsl(210, 100%, 82%);
+}
+
+/* Horizontal scroll variant for tight spaces */
+.filter-chips--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.filter-chips--scroll::-webkit-scrollbar {
+  display: none;
+}

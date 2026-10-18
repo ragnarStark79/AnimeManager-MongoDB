@@ -1,0 +1,162 @@
+/* ============================================================
+   AnimeManager — Glassmorphism Surface Utilities
+   ============================================================ */
+
+/* ── Base glass surface ─────────────────────────────────────── */
+.glass {
+  background: var(--glass-light);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+}
+
+.glass-sm {
+  background: var(--glass-light);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.glass-mid {
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+}
+
+.glass-strong {
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-xl);
+}
+
+/* ── Interactive glass (hover / active states) ───────────────── */
+.glass-interactive {
+  background: var(--glass-light);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+  cursor: pointer;
+}
+
+.glass-interactive:hover {
+  background: var(--glass-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.glass-interactive:active {
+  background: var(--glass-active);
+  transform: translateY(0);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Sidebar glass panel ────────────────────────────────────── */
+.glass-sidebar {
+  background: hsla(220, 32%, 12%, 0.85);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  border-right: 1px solid var(--glass-border);
+}
+
+/* ── Header glass panel ─────────────────────────────────────── */
+.glass-header {
+  background: hsla(220, 30%, 11%, 0.82);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* ── Card panel ─────────────────────────────────────────────── */
+.glass-card {
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+}
+
+.glass-card:hover {
+  background: var(--glass-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--shadow-xl);
+  transform: translateY(-2px);
+}
+
+/* ── Modal / Dialog ─────────────────────────────────────────── */
+.glass-modal {
+  background: hsla(220, 28%, 15%, 0.92);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2xl);
+}
+
+/* ── Ambient glow decorations ───────────────────────────────── */
+.glow-primary {
+  box-shadow: var(--shadow-glow-primary);
+}
+.glow-secondary {
+  box-shadow: var(--shadow-glow-secondary);
+}
+
+/* ── Noise/grain texture overlay (subtle) ───────────────────── */
+.glass::after,
+.glass-mid::after,
+.glass-strong::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ── Gradient highlights ─────────────────────────────────────── */
+.highlight-top {
+  position: relative;
+  overflow: hidden;
+}
+.highlight-top::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsla(210,60%,90%,0.18), transparent);
+  pointer-events: none;
+}
+
+/* ── Fallback for no backdrop-filter support ─────────────────── */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass,
+  .glass-sm,
+  .glass-mid,
+  .glass-strong,
+  .glass-interactive,
+  .glass-sidebar,
+  .glass-header,
+  .glass-card,
+  .glass-modal {
+    background: var(--bg-panel);
+  }
+}
