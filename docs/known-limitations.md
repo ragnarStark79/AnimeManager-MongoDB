@@ -47,3 +47,16 @@
 1. **No Community Reviews:** Community reviews are excluded from v1 imports to maintain a lean, private library catalog.
 2. **Single-User / Private-First:** Version 1 focuses on personal library cataloging. Public social feeds and multi-user subscriptions are excluded from this release.
 3. **No Two-Way Write-Back Sync to MAL:** Imports from MyAnimeList are unidirectional; the application does not write progress back to external MyAnimeList accounts.
+
+---
+
+## 5. Authentication & Single-Owner Operational Model
+
+1. **Pre-Generated Token Bootstrap:**
+   - Production mode does not expose public user registration or interactive password login forms.
+   - Access is restricted to the application owner via cryptographic HS256 JWT tokens.
+   - The owner generates an initial session token via the CLI (`scripts/generate-session-token.js`) using the private `JWT_SECRET` and inputs it into browser storage via the Settings UI.
+2. **Token Revocation & Expiration:**
+   - Stateless JWT tokens cannot be revoked individually without rotating the global `JWT_SECRET`.
+   - Token lifetimes are bounded (default 24h for dev tokens, operator-configurable for production tokens).
+   - Multi-user authentication, OAuth providers, and refresh token rotation represent future post-v1 roadmap items.
