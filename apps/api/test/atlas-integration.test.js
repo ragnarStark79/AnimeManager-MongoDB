@@ -1,7 +1,11 @@
 import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import request from 'supertest';
 import { config } from '../dist/config/index.js';
+import { createApp } from '../dist/app.js';
+import { SESSION_COOKIE_NAME } from '../dist/utils/cookie.js';
+import { hashPassword } from '../dist/utils/password.js';
 import {
   getMongoClient,
   getDb,
@@ -18,9 +22,19 @@ import { bookmarksRepository } from '../dist/repositories/bookmarks.repository.j
 import { ImportService } from '../dist/services/import/import.service.js';
 
 // Dedicated Atlas Verification Test Database
-const ATLAS_TEST_DB = 'animemanager_atlas_verification_test';
+const ATLAS_TEST_DB = process.env.TEST_MONGODB_DB_NAME || 'animemanager_phase16_test';
 const TEST_OWNER_A = '10000000-0000-0000-0000-000000000001';
 const TEST_OWNER_B = '20000000-0000-0000-0000-000000000002';
+
+const app = createApp();
+
+function getCookieFromResponse(res) {
+  const cookies = res.headers['set-cookie'];
+  const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : cookies || '';
+  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  assert.ok(match, 'Expected session cookie');
+  return `${SESSION_COOKIE_NAME}=${match[1]}`;
+}
 
 // Security Guard: Abort immediately if not pointing to Atlas
 if (!config.MONGODB_URI.includes('mongodb+srv://') && !config.MONGODB_URI.includes('.mongodb.net')) {
@@ -41,20 +55,27 @@ before(async () => {
   // Idempotent index initialization in dedicated Atlas test DB
   await initIndexes(db);
 
-  // Clean only synthetic test owner records before testing
+  // Clean only synthetic test records before testing
   await db.collection('titles').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
   await db.collection('collections').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
   await db.collection('bookmarks').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
+  await db.collection('users').deleteMany({ email: /@atlas-test\.animemanager\.local$/i });
+  await db.collection('super_admins').deleteMany({ email: /@atlas-test\.animemanager\.local$/i });
 });
 
 after(async () => {
   try {
     const db = await getDb();
     if (db.databaseName === ATLAS_TEST_DB) {
-      // Clean only synthetic test owner records - do NOT drop database
+      // Clean only synthetic test records - do NOT drop database
       await db.collection('titles').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
       await db.collection('collections').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
       await db.collection('bookmarks').deleteMany({ ownerId: { $in: [TEST_OWNER_A, TEST_OWNER_B] } });
+      await db.collection('users').deleteMany({ email: /@atlas-test\.animemanager\.local$/i });
+      await db.collection('super_admins').deleteMany({ email: /@atlas-test\.animemanager\.local$/i });
+      await db.collection('user_sessions').deleteMany({});
+      await db.collection('super_admin_sessions').deleteMany({});
+      await db.collection('root_admin_sessions').deleteMany({});
     }
   } finally {
     setTestDbName(null);
@@ -574,4 +595,485 @@ test('Atlas 12: Verify No Silent Fallback to Non-Transactional Writes on Error',
     1,
     'Callback must NOT be re-executed without session when error is not code 20'
   );
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHASE 16: Three-Role Cloud Authentication, Isolation & Privacy Verification
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('Atlas 13: Root Administrator Authentication, SHA-256 Session Storage & Session Lifecycle on Atlas', async () => {
+  const db = await getDb();
+  const rootEmail = 'test-root-atlas@atlas-test.animemanager.local';
+  const rootPassword = 'Phase16RootPass!2026';
+  const rootId = randomUUID();
+
+  // Provision test root admin in Atlas
+  const passwordHash = await hashPassword(rootPassword);
+  await db.collection('root_admins').deleteMany({ email: rootEmail });
+  await db.collection('root_admins').insertOne({
+    _id: rootId,
+    email: rootEmail,
+    passwordHash,
+    displayName: 'Root Administrator Atlas Test',
+    role: 'root_admin',
+    status: 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastLoginAt: null,
+  });
+
+  // Verify stored password hash uses scrypt$v1$ format
+  const doc = await db.collection('root_admins').findOne({ _id: rootId });
+  assert.ok(doc?.passwordHash.startsWith('scrypt$v1$'), 'Atlas root admin password must be scrypt-hashed');
+
+  // Login failure on invalid password
+  const failRes = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: rootEmail, password: 'WrongPassword123!' });
+  assert.equal(failRes.status, 401);
+
+  // Successful login
+  const loginRes = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: rootEmail, password: rootPassword });
+  assert.equal(loginRes.status, 200);
+  assert.equal(loginRes.body.data.user.role, 'root_admin');
+
+  const cookie = getCookieFromResponse(loginRes);
+  const rawToken = cookie.split('=')[1].split(';')[0];
+
+  // Inspect Atlas root_admin_sessions: token must be SHA-256 hashed, NEVER plaintext
+  const sessions = await db.collection('root_admin_sessions').find({ rootAdminId: rootId }).toArray();
+  assert.ok(sessions.length >= 1, 'Expected at least one session record in Atlas');
+  const foundSession = sessions.find((s) => !s.revokedAt);
+  assert.ok(foundSession, 'Active session must exist in Atlas');
+  assert.notEqual(foundSession.sessionTokenHash, rawToken, 'Session token must NOT be stored in plaintext');
+  assert.equal(foundSession.sessionTokenHash.length, 64, 'Session token hash must be a 64-char SHA-256 hex string');
+
+  // Verify session restoration via /api/v1/auth/me
+  const meRes = await request(app)
+    .get('/api/v1/auth/me')
+    .set('Cookie', cookie);
+  assert.equal(meRes.status, 200);
+  assert.equal(meRes.body.data.user.role, 'root_admin');
+  assert.equal(meRes.body.data.user.email, rootEmail);
+
+  // Logout invalidates session in Atlas
+  const logoutRes = await request(app)
+    .post('/api/v1/auth/logout')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookie);
+  assert.equal(logoutRes.status, 200);
+
+  // Subsequent request with revoked cookie returns 401
+  const afterLogoutRes = await request(app)
+    .get('/api/v1/auth/me')
+    .set('Cookie', cookie);
+  assert.equal(afterLogoutRes.status, 401);
+});
+
+test('Atlas 14: Super Admin Creation, Initial Disabled Status, Activation Flow & Role Boundaries on Atlas', async () => {
+  const db = await getDb();
+  const rootEmail = 'test-root-atlas@atlas-test.animemanager.local';
+  const rootPassword = 'Phase16RootPass!2026';
+  const saEmail = 'test-sa-atlas@atlas-test.animemanager.local';
+  const saPassword = 'Phase16SuperAdminPass!2026';
+
+  // Login as Root Admin
+  const rootLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: rootEmail, password: rootPassword });
+  assert.equal(rootLogin.status, 200);
+  const rootCookie = getCookieFromResponse(rootLogin);
+
+  // Clean prior test superadmin if exists
+  await db.collection('super_admins').deleteMany({ email: saEmail });
+
+  // Root Admin creates Super Admin via authorized management API
+  const createRes = await request(app)
+    .post('/api/v1/admin/super-admins')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', rootCookie)
+    .send({
+      email: saEmail,
+      password: saPassword,
+      confirmPassword: saPassword,
+      displayName: 'Cloud Super Admin Test',
+    });
+  assert.equal(createRes.status, 201);
+  const createdSaId = createRes.body.data.id;
+  assert.equal(createRes.body.data.role, 'superadmin');
+  assert.equal(createRes.body.data.status, 'disabled', 'Super Admin must be disabled upon initial creation');
+
+  // Verify in Atlas super_admins collection that status is disabled
+  const saDoc = await db.collection('super_admins').findOne({ _id: createdSaId });
+  assert.ok(saDoc);
+  assert.equal(saDoc.status, 'disabled');
+  assert.ok(saDoc.passwordHash.startsWith('scrypt$v1$'));
+
+  // Disabled Super Admin CANNOT authenticate
+  const disabledLoginRes = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: saEmail, password: saPassword });
+  assert.equal(disabledLoginRes.status, 401, 'Disabled Super Admin must be rejected');
+
+  // Root Admin activates the Super Admin
+  const activateRes = await request(app)
+    .patch(`/api/v1/admin/super-admins/${createdSaId}/status`)
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', rootCookie)
+    .send({ status: 'active' });
+  assert.equal(activateRes.status, 200);
+  assert.equal(activateRes.body.data.status, 'active');
+
+  // Active Super Admin logs in successfully
+  const saLoginRes = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: saEmail, password: saPassword });
+  assert.equal(saLoginRes.status, 200);
+  assert.equal(saLoginRes.body.data.user.role, 'superadmin');
+  const saCookie = getCookieFromResponse(saLoginRes);
+
+  // Super Admin reaches /api/v1/auth/me
+  const saMe = await request(app)
+    .get('/api/v1/auth/me')
+    .set('Cookie', saCookie);
+  assert.equal(saMe.status, 200);
+  assert.equal(saMe.body.data.user.role, 'superadmin');
+
+  // Super Admin can access Super Admin endpoints (e.g. user activity)
+  const saActivity = await request(app)
+    .get('/api/v1/admin/user-activity')
+    .set('Cookie', saCookie);
+  assert.equal(saActivity.status, 200);
+
+  // Super Admin CANNOT create another Super Admin (Role Boundary Guard)
+  const peerCreateAttempt = await request(app)
+    .post('/api/v1/admin/super-admins')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', saCookie)
+    .send({
+      email: 'peer-sa@atlas-test.animemanager.local',
+      password: 'PeerPassword123!',
+      confirmPassword: 'PeerPassword123!',
+      displayName: 'Unauthorized Peer',
+    });
+  assert.equal(peerCreateAttempt.status, 403, 'Super Admin must NOT be allowed to create another Super Admin');
+});
+
+test('Atlas 15: Ordinary User Registration, Unique Constraints & Scrypt Password Hashing on Atlas', async () => {
+  const db = await getDb();
+  const userA_email = 'user-a@atlas-test.animemanager.local';
+  const userA_username = 'usera_atlas';
+  const userPassword = 'Phase16UserPass!2026';
+
+  await db.collection('users').deleteMany({
+    $or: [{ email: userA_email }, { username: userA_username }],
+  });
+
+  // Register User A
+  const regRes = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: userA_email,
+      username: userA_username,
+      password: userPassword,
+      confirmPassword: userPassword,
+      displayName: 'User A Atlas',
+    });
+  assert.equal(regRes.status, 201);
+  assert.equal(regRes.body.data.user.role, 'user');
+  assert.equal(regRes.body.data.user.status, 'active');
+
+  const userA_id = regRes.body.data.user.id;
+  assert.ok(userA_id, 'User must have a unique identifier');
+
+  // Verify document in Atlas users collection
+  const userDoc = await db.collection('users').findOne({ _id: userA_id });
+  assert.ok(userDoc);
+  assert.equal(userDoc.email, userA_email);
+  assert.equal(userDoc.username, userA_username);
+  assert.ok(userDoc.passwordHash.startsWith('scrypt$v1$'));
+
+  // Duplicate email registration rejected
+  const dupEmailRes = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: userA_email.toUpperCase(), // case-insensitive check
+      username: 'different_user',
+      displayName: 'Duplicate Email User',
+      password: userPassword,
+      confirmPassword: userPassword,
+    });
+  assert.equal(dupEmailRes.status, 409, 'Duplicate email must be rejected with 409');
+
+  // Duplicate username registration rejected
+  const dupUsernameRes = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: 'different@atlas-test.animemanager.local',
+      username: userA_username.toUpperCase(), // case-insensitive check
+      displayName: 'Duplicate Username User',
+      password: userPassword,
+      confirmPassword: userPassword,
+    });
+  assert.equal(dupUsernameRes.status, 409, 'Duplicate username must be rejected with 409');
+
+  // Ordinary User CANNOT access administrative APIs
+  const userCookie = getCookieFromResponse(regRes);
+  const adminAccess = await request(app)
+    .get('/api/v1/admin/users')
+    .set('Cookie', userCookie);
+  assert.equal(adminAccess.status, 403, 'Ordinary user must be rejected from admin portal with 403');
+});
+
+test('Atlas 16: Multi-Tenant Personal Library Isolation on Atlas', async () => {
+  const userA_email = 'user-a-lib@atlas-test.animemanager.local';
+  const userB_email = 'user-b-lib@atlas-test.animemanager.local';
+  const password = 'Phase16UserPass!2026';
+
+  const db = await getDb();
+  await db.collection('users').deleteMany({ email: { $in: [userA_email, userB_email] } });
+
+  // Register User A
+  const regA = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: userA_email,
+      username: 'usera_lib_' + Date.now(),
+      password,
+      confirmPassword: password,
+      displayName: 'User A',
+    });
+  assert.equal(regA.status, 201);
+  const cookieA = getCookieFromResponse(regA);
+  const userA_id = regA.body.data.user.id;
+
+  // Register User B
+  const regB = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: userB_email,
+      username: 'userb_lib_' + Date.now(),
+      password,
+      confirmPassword: password,
+      displayName: 'User B',
+    });
+  assert.equal(regB.status, 201);
+  const cookieB = getCookieFromResponse(regB);
+  const userB_id = regB.body.data.user.id;
+
+  // 1. User A creates a title in their personal library
+  const titleARes = await request(app)
+    .post('/api/v1/titles')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookieA)
+    .send({
+      mediaType: 'anime',
+      englishTitle: 'User A Private Anime',
+      releaseYear: 2026,
+    });
+  assert.equal(titleARes.status, 201);
+  const titleA_id = titleARes.body.data.id;
+
+  // 2. User B creates a different title in their personal library
+  const titleBRes = await request(app)
+    .post('/api/v1/titles')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookieB)
+    .send({
+      mediaType: 'manga',
+      englishTitle: 'User B Private Manga',
+      releaseYear: 2025,
+    });
+  assert.equal(titleBRes.status, 201);
+  const titleB_id = titleBRes.body.data.id;
+
+  // 3. User A can retrieve User A title
+  const fetchARes = await request(app)
+    .get(`/api/v1/titles/${titleA_id}`)
+    .set('Cookie', cookieA);
+  assert.equal(fetchARes.status, 200);
+  assert.equal(fetchARes.body.data.englishTitle, 'User A Private Anime');
+
+  // 4. User B CANNOT retrieve User A title (Strict 404 Isolation)
+  const crossFetchRes = await request(app)
+    .get(`/api/v1/titles/${titleA_id}`)
+    .set('Cookie', cookieB);
+  assert.equal(crossFetchRes.status, 404, 'Cross-user read must return 404');
+
+  // 5. User B CANNOT edit User A title
+  const crossUpdateRes = await request(app)
+    .put(`/api/v1/titles/${titleA_id}`)
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookieB)
+    .send({ englishTitle: 'Hacked Title Attempt' });
+  assert.equal(crossUpdateRes.status, 404, 'Cross-user update must return 404');
+
+  // 6. User B CANNOT delete User A title
+  const crossDeleteRes = await request(app)
+    .delete(`/api/v1/titles/${titleA_id}?confirm=true`)
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookieB);
+  assert.equal(crossDeleteRes.status, 404, 'Cross-user delete must return 404');
+
+  // Verify User A title was NOT mutated or deleted in Atlas
+  const verifiedDocA = await db.collection('titles').findOne({ _id: titleA_id });
+  assert.ok(verifiedDocA);
+  assert.equal(verifiedDocA.englishTitle, 'User A Private Anime');
+  assert.equal(verifiedDocA.ownerId, userA_id);
+
+  // 7. Client ownerId spoofing prevention:
+  // User A attempts to specify User B's ownerId in request body
+  const spoofRes = await request(app)
+    .post('/api/v1/titles')
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', cookieA)
+    .send({
+      mediaType: 'anime',
+      englishTitle: 'Spoofed OwnerId Title',
+      ownerId: userB_id, // Spoof attempt
+    });
+  assert.equal(spoofRes.status, 201);
+  const spoofedTitleId = spoofRes.body.data.id;
+
+  // Verify in Atlas that ownerId is User A (from session), NOT the spoofed User B id
+  const spoofDoc = await db.collection('titles').findOne({ _id: spoofedTitleId });
+  assert.equal(spoofDoc?.ownerId, userA_id, 'Server MUST bind to session ownerId, ignoring spoofed client ownerId');
+});
+
+test('Atlas 17: Privacy-Preserving Activity Audit Logging on Atlas', async () => {
+  const db = await getDb();
+  const rootEmail = 'test-root-atlas@atlas-test.animemanager.local';
+  const rootPassword = 'Phase16RootPass!2026';
+
+  // Login as Root Admin to inspect audit logs
+  const rootLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: rootEmail, password: rootPassword });
+  assert.equal(rootLogin.status, 200);
+  const rootCookie = getCookieFromResponse(rootLogin);
+
+  // Fetch recent audit logs from API
+  const auditRes = await request(app)
+    .get('/api/v1/admin/audit-logs')
+    .set('Cookie', rootCookie);
+  assert.equal(auditRes.status, 200);
+  const auditItems = auditRes.body.data || [];
+  assert.ok(auditItems.length > 0, 'Audit logs must be recorded in Atlas');
+
+  // Verify directly from Atlas audit_logs collection
+  const allLogs = await db.collection('audit_logs').find({}).toArray();
+  assert.ok(allLogs.length > 0, 'Audit log collection must contain documents in Atlas');
+
+  // PRIVACY VERIFICATION:
+  // Library operations must NEVER record title name, original title, synopsis, rating, or notes
+  for (const log of allLogs) {
+    if (log.targetType === 'library' || log.eventType.startsWith('title.')) {
+      if (log.metadata) {
+        assert.equal(
+          log.metadata.englishTitle,
+          undefined,
+          `Privacy violation: englishTitle exposed in audit log event ${log.eventType}`
+        );
+        assert.equal(
+          log.metadata.originalTitle,
+          undefined,
+          `Privacy violation: originalTitle exposed in audit log event ${log.eventType}`
+        );
+        assert.equal(
+          log.metadata.synopsis,
+          undefined,
+          `Privacy violation: synopsis exposed in audit log event ${log.eventType}`
+        );
+        assert.equal(
+          log.metadata.personalRating,
+          undefined,
+          `Privacy violation: personalRating exposed in audit log event ${log.eventType}`
+        );
+      }
+    }
+
+    // Auth events must NEVER contain passwords, hashes, or session tokens
+    if (log.eventType.startsWith('auth.')) {
+      if (log.metadata) {
+        assert.equal(log.metadata.password, undefined, 'Privacy violation: password exposed in audit metadata');
+        assert.equal(log.metadata.passwordHash, undefined, 'Privacy violation: passwordHash exposed in audit metadata');
+        assert.equal(log.metadata.sessionToken, undefined, 'Privacy violation: sessionToken exposed in audit metadata');
+      }
+    }
+  }
+});
+
+test('Atlas 18: Account Disablement Invalidates Existing Sessions on Atlas', async () => {
+  const db = await getDb();
+  const rootEmail = 'test-root-atlas@atlas-test.animemanager.local';
+  const rootPassword = 'Phase16RootPass!2026';
+  const victimEmail = 'victim-user@atlas-test.animemanager.local';
+  const victimPass = 'Phase16VictimPass!2026';
+
+  await db.collection('users').deleteMany({ email: victimEmail });
+
+  // 1. Register victim user
+  const reg = await request(app)
+    .post('/api/v1/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .send({
+      email: victimEmail,
+      username: 'victim_atlas_' + Date.now(),
+      displayName: 'Victim User',
+      password: victimPass,
+      confirmPassword: victimPass,
+    });
+  assert.equal(reg.status, 201);
+  const victimCookie = getCookieFromResponse(reg);
+  const victimId = reg.body.data.user.id;
+
+  // Verify victim session works
+  const meBefore = await request(app)
+    .get('/api/v1/auth/me')
+    .set('Cookie', victimCookie);
+  assert.equal(meBefore.status, 200);
+
+  // 2. Root Admin logs in and disables the victim user
+  const rootLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: rootEmail, password: rootPassword });
+  assert.equal(rootLogin.status, 200);
+  const rootCookie = getCookieFromResponse(rootLogin);
+
+  const disableRes = await request(app)
+    .patch(`/api/v1/admin/users/${victimId}/status`)
+    .set('Origin', 'http://localhost:5173')
+    .set('Cookie', rootCookie)
+    .send({ status: 'disabled' });
+  assert.equal(disableRes.status, 200);
+
+  // 3. Victim user attempts to use existing cookie -> MUST be rejected (401 or 403)
+  const meAfter = await request(app)
+    .get('/api/v1/auth/me')
+    .set('Cookie', victimCookie);
+  assert.ok(
+    meAfter.status === 401 || meAfter.status === 403,
+    `Disabled user session must be rejected, got HTTP ${meAfter.status}`
+  );
+
+  // 4. Victim user attempts to log in again -> Rejected with 401 or 403 Account is disabled
+  const relogin = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', 'http://localhost:5173')
+    .send({ email: victimEmail, password: victimPass });
+  assert.ok(relogin.status === 401 || relogin.status === 403, 'Disabled user login must return 401 or 403');
 });
