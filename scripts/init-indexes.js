@@ -25,11 +25,42 @@
  */
 
 import { MongoClient } from 'mongodb';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
+
+function tryLoadEnv() {
+  const candidatePaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '../.env'),
+  ];
+  for (const envPath of candidatePaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const content = fs.readFileSync(envPath, 'utf8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const idx = trimmed.indexOf('=');
+          if (idx !== -1) {
+            const key = trimmed.slice(0, idx).trim();
+            const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+            if (!(key in process.env)) {
+              process.env[key] = val;
+            }
+          }
+        }
+        break;
+      } catch {
+        // Fall back to existing process.env
+      }
+    }
+  }
+}
+tryLoadEnv();
 
 const args = process.argv.slice(2);
 
@@ -109,7 +140,41 @@ const PLANNED_INDEXES = {
     { key: { ownerId: 1, priority: -1 }, name: 'idx_bookmarks_owner_priority' },
     { key: { ownerId: 1, progress: -1 }, name: 'idx_bookmarks_owner_progress' },
   ],
+  root_admins: [
+    { key: { email: 1 }, name: 'uq_root_admins_email', unique: true },
+    { key: { username: 1 }, name: 'uq_root_admins_username', unique: true, partialFilterExpression: { username: { $exists: true, $type: 'string' } } },
+  ],
+  root_admin_sessions: [
+    { key: { sessionTokenHash: 1 }, name: 'uq_root_admin_sessions_token_hash', unique: true },
+    { key: { rootAdminId: 1 }, name: 'idx_root_admin_sessions_admin_id' },
+    { key: { expiresAt: 1 }, name: 'idx_root_admin_sessions_expires_at' },
+  ],
+  super_admins: [
+    { key: { email: 1 }, name: 'uq_super_admins_email', unique: true },
+    { key: { username: 1 }, name: 'uq_super_admins_username', unique: true, partialFilterExpression: { username: { $exists: true, $type: 'string' } } },
+  ],
+  super_admin_sessions: [
+    { key: { sessionTokenHash: 1 }, name: 'uq_sessions_token_hash', unique: true },
+    { key: { adminId: 1 }, name: 'idx_sessions_admin_id' },
+    { key: { expiresAt: 1 }, name: 'idx_sessions_expires_at' },
+  ],
+  users: [
+    { key: { email: 1 }, name: 'uq_users_email', unique: true },
+    { key: { username: 1 }, name: 'uq_users_username', unique: true },
+  ],
+  user_sessions: [
+    { key: { sessionTokenHash: 1 }, name: 'uq_user_sessions_token_hash', unique: true },
+    { key: { userId: 1 }, name: 'idx_user_sessions_user_id' },
+    { key: { expiresAt: 1 }, name: 'idx_user_sessions_expires_at' },
+  ],
+  audit_logs: [
+    { key: { timestamp: -1 }, name: 'idx_audit_logs_timestamp' },
+    { key: { actorId: 1, timestamp: -1 }, name: 'idx_audit_logs_actor' },
+    { key: { targetId: 1, timestamp: -1 }, name: 'idx_audit_logs_target' },
+    { key: { eventType: 1, timestamp: -1 }, name: 'idx_audit_logs_event_type' },
+  ],
 };
+
 
 if (isDryRun) {
   console.log('\n[Init Indexes] Mode: DRY RUN (no database operations will be performed)\n');
@@ -224,15 +289,25 @@ async function run() {
     console.log('[Init Indexes] Connected. Creating indexes across collections (titles, collections, bookmarks)...');
     await initIndexes(db);
 
-    // Verify created indexes
-    const titlesIndexes = await db.collection('titles').indexes();
-    const collectionsIndexes = await db.collection('collections').indexes();
-    const bookmarksIndexes = await db.collection('bookmarks').indexes();
+    // Verify created indexes across all collections
+    const targetCollections = [
+      'titles',
+      'collections',
+      'bookmarks',
+      'root_admins',
+      'root_admin_sessions',
+      'super_admins',
+      'super_admin_sessions',
+      'users',
+      'user_sessions',
+      'audit_logs',
+    ];
 
     console.log(`\n[Init Indexes] Success! Indexes verified on database "${targetDb}":`);
-    console.log(`  - titles: ${titlesIndexes.length} indexes`);
-    console.log(`  - collections: ${collectionsIndexes.length} indexes`);
-    console.log(`  - bookmarks: ${bookmarksIndexes.length} indexes`);
+    for (const collName of targetCollections) {
+      const idxs = await db.collection(collName).indexes();
+      console.log(`  - ${collName}: ${idxs.length} indexes`);
+    }
     console.log('\nAll unique constraints and query indexes are active.\n');
   } catch (err) {
     console.error('\n[Init Indexes Error] Index initialization failed:', err.message);

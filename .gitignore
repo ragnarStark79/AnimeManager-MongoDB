@@ -66,3 +66,7 @@ scripts/verify-supabase-remote.js
 scripts/verify-supabase-workflows.js
 scripts/migrate-supabase.js
 
+# Personal Master Engineering Documentation (Not for push)
+MASTER_PROJECT_DOCUMENTATION_AND_OPERATIONS_MANUAL.md
+
+
