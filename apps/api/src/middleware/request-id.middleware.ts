@@ -8,8 +8,13 @@ declare global {
       user?: {
         id: string;
         email?: string;
+        username?: string;
+        displayName?: string;
         role?: string;
+        status?: string;
+        adminId?: string;
       };
+
     }
   }
 }

@@ -5,6 +5,7 @@ import {
 } from '../repositories/bookmarks.repository.js';
 import type { BookmarkCreateInput, BookmarkUpdateInput } from '@animemanager/shared';
 import { NotFoundError, BadRequestError } from '../errors/index.js';
+import { auditLogsRepository } from '../repositories/audit-logs.repository.js';
 
 export const bookmarksService = {
   async listBookmarks(ownerId: string, filters: BookmarkListFilters) {
@@ -25,7 +26,18 @@ export const bookmarksService = {
         throw new BadRequestError(`Progress (${data.progress}) cannot exceed total count (${data.progressTotal})`);
       }
     }
-    return bookmarksRepository.create(ownerId, data);
+    const created = await bookmarksRepository.create(ownerId, data);
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.bookmark_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a bookmark',
+      outcome: 'success',
+    });
+
+    return created;
   },
 
   async updateBookmark(
@@ -51,6 +63,16 @@ export const bookmarksService = {
     if (!updated) {
       throw new NotFoundError('Bookmark not found');
     }
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.bookmark_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a bookmark',
+      outcome: 'success',
+    });
+
     return updated;
   },
 
@@ -59,6 +81,15 @@ export const bookmarksService = {
     if (!deleted) {
       throw new NotFoundError('Bookmark not found');
     }
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.bookmark_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a bookmark',
+      outcome: 'success',
+    });
   },
 
   async upsertTitleBookmark(
@@ -71,6 +102,17 @@ export const bookmarksService = {
         throw new BadRequestError(`Progress (${data.progress}) cannot exceed total count (${data.progressTotal})`);
       }
     }
-    return bookmarksRepository.upsertByTitleId(ownerId, titleId, data);
+    const result = await bookmarksRepository.upsertByTitleId(ownerId, titleId, data);
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.bookmark_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a bookmark',
+      outcome: 'success',
+    });
+
+    return result;
   },
 };

@@ -5,6 +5,7 @@ import {
 } from '../repositories/collections.repository.js';
 import type { CollectionCreateInput, CollectionUpdateInput } from '@animemanager/shared';
 import { NotFoundError } from '../errors/index.js';
+import { auditLogsRepository } from '../repositories/audit-logs.repository.js';
 
 export const collectionsService = {
   async listCollections(ownerId: string): Promise<CollectionSummary[]> {
@@ -20,7 +21,18 @@ export const collectionsService = {
   },
 
   async createCollection(ownerId: string, data: CollectionCreateInput): Promise<CollectionSummary> {
-    return collectionsRepository.create(ownerId, data);
+    const created = await collectionsRepository.create(ownerId, data);
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
+
+    return created;
   },
 
   async updateCollection(
@@ -32,6 +44,16 @@ export const collectionsService = {
     if (!updated) {
       throw new NotFoundError('Collection not found');
     }
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
+
     return updated;
   },
 
@@ -40,10 +62,28 @@ export const collectionsService = {
     if (!deleted) {
       throw new NotFoundError('Collection not found');
     }
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
   },
 
   async addTitles(ownerId: string, collectionId: string, titleIds: string[]): Promise<void> {
     await collectionsRepository.addTitles(ownerId, collectionId, titleIds);
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
   },
 
   async removeTitle(ownerId: string, collectionId: string, titleId: string): Promise<void> {
@@ -51,6 +91,15 @@ export const collectionsService = {
     if (!removed) {
       throw new NotFoundError('Title membership not found in this collection');
     }
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
   },
 
   async reorderTitles(
@@ -59,5 +108,14 @@ export const collectionsService = {
     order: Array<{ titleId: string; position: number }>
   ): Promise<void> {
     await collectionsRepository.reorderTitles(ownerId, collectionId, order);
+
+    await auditLogsRepository.recordEvent({
+      eventType: 'user.collection_changed',
+      actorId: ownerId,
+      actorRole: 'user',
+      targetType: 'library',
+      action: 'User changed a collection',
+      outcome: 'success',
+    });
   },
 };

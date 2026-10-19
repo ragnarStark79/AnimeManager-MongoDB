@@ -12,6 +12,9 @@ import {
   importDraftSchema,
   importFieldSelectionSchema,
   importCommitSchema,
+  loginInputSchema,
+  createSuperAdminSchema,
+  updateSuperAdminStatusSchema,
 } from '../schemas/index.js';
 import {
   MediaType,
@@ -38,6 +41,9 @@ export type ImportPreviewQuery = z.infer<typeof importPreviewQuerySchema>;
 export type ImportDraft = z.infer<typeof importDraftSchema>;
 export type ImportFieldSelection = z.infer<typeof importFieldSelectionSchema>;
 export type ImportCommitInput = z.infer<typeof importCommitSchema>;
+
+
+
 
 export interface ImportSearchResultItem {
   malId: number;
@@ -124,3 +130,103 @@ export interface ExternalSourceEntity {
   lastFetchedAt: string | null;
   createdAt: string;
 }
+
+// ── Auth & Account Roles ──────────────────────────────────────────────
+export type AuthRole = 'root_admin' | 'superadmin' | 'user' | 'authenticated';
+export type UserStatus = 'active' | 'restricted' | 'disabled' | 'deleted';
+export type SuperAdminStatus = 'active' | 'disabled';
+export type RootAdminStatus = 'active' | 'disabled';
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface RegisterUserInput {
+  username: string;
+  displayName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface CreateSuperAdminInput {
+  username?: string;
+  displayName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface UpdateSuperAdminStatusInput {
+  status: SuperAdminStatus;
+  reason?: string;
+}
+
+export interface UpdateUserStatusInput {
+  status: UserStatus;
+  reason?: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  username?: string;
+  displayName: string;
+  role: AuthRole;
+  status?: UserStatus | SuperAdminStatus | RootAdminStatus;
+  adminId?: string;
+}
+
+export interface ManagedUser {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string;
+  role: 'user' | 'owner';
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string | null;
+  titlesCount: number;
+  bookmarksCount: number;
+  collectionsCount: number;
+}
+
+export interface SuperAdminProfile {
+  id: string;
+  username?: string;
+  email: string;
+  displayName: string;
+  role: 'superadmin';
+  status: SuperAdminStatus;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string | null;
+}
+
+export interface RootAdminProfile {
+  id: string;
+  username?: string;
+  email: string;
+  displayName: string;
+  role: 'root_admin';
+  status: RootAdminStatus;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string | null;
+}
+
+export interface AuditEvent {
+  id: string;
+  eventType: string;
+  actorId: string;
+  actorRole: string;
+  targetId?: string | null;
+  targetType?: string | null;
+  action: string;
+  outcome: 'success' | 'failure';
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+}
+

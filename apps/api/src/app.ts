@@ -11,6 +11,7 @@ import { bookmarksRouter } from './routes/bookmarks.routes.js';
 import { importRouter } from './routes/import.routes.js';
 import { exportRouter } from './routes/export.routes.js';
 import { authRouter } from './routes/auth.routes.js';
+import { adminRouter } from './routes/admin.routes.js';
 import { NotFoundError } from './errors/index.js';
 
 export function createApp(): Express {
@@ -38,6 +39,7 @@ export function createApp(): Express {
   const apiRouter = express.Router();
   apiRouter.use(healthRouter);
   apiRouter.use(authRouter);
+  apiRouter.use(adminRouter);
   apiRouter.use(titlesRouter);
   apiRouter.use(collectionsRouter);
   apiRouter.use(bookmarksRouter);

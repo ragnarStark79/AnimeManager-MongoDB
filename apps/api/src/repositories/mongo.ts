@@ -95,6 +95,93 @@ export interface BookmarkDocument {
   updatedAt: Date;
 }
 
+export interface RootAdminDocument {
+  _id: string; // UUID string identifier
+  email: string; // Trimmed & lowercased for case-insensitive uniqueness
+  username?: string; // Trimmed & lowercased for case-insensitive uniqueness
+  passwordHash: string; // scrypt$v1$<saltHex>$<derivedKeyHex>
+  displayName: string;
+  role: 'root_admin';
+  status: 'active' | 'disabled';
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt: Date | null;
+}
+
+export interface RootAdminSessionDocument {
+  _id: string; // UUID string identifier
+  sessionTokenHash: string; // SHA-256 hash of raw token
+  rootAdminId: string; // References RootAdminDocument._id
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
+export interface SuperAdminDocument {
+  _id: string; // UUID string identifier
+  email: string; // Trimmed & lowercased for case-insensitive uniqueness
+  username?: string; // Trimmed & lowercased
+  passwordHash: string; // scrypt$v1$<saltHex>$<derivedKeyHex>
+  displayName: string;
+  role?: 'superadmin';
+  status: 'active' | 'disabled';
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt: Date | null;
+}
+
+export interface SuperAdminSessionDocument {
+  _id: string; // UUID string identifier
+  sessionTokenHash: string; // SHA-256 hash of raw token
+  adminId: string; // References SuperAdminDocument._id
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
+export interface UserDocument {
+  _id: string; // UUID string identifier (Personal Library Owner ID)
+  email: string; // Trimmed & lowercased for case-insensitive uniqueness
+  username: string; // Trimmed & lowercased for case-insensitive uniqueness
+  passwordHash: string; // scrypt$v1$<saltHex>$<derivedKeyHex>
+  displayName: string;
+  role: 'user';
+  status: 'active' | 'restricted' | 'disabled' | 'deleted';
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt: Date | null;
+}
+
+export interface UserSessionDocument {
+  _id: string; // UUID string identifier
+  sessionTokenHash: string; // SHA-256 hash of raw token
+  userId: string; // References UserDocument._id
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
+export interface AuditLogDocument {
+  _id: string; // UUID string identifier
+  eventType: string;
+  actorId: string;
+  actorRole: 'root_admin' | 'superadmin' | 'user' | 'system';
+  targetId?: string | null;
+  targetType?: 'user' | 'superadmin' | 'root_admin' | 'library' | 'system';
+  action: string;
+  outcome: 'success' | 'failure';
+  metadata?: Record<string, unknown>;
+  timestamp: Date;
+}
+
+
+
 export interface MongoHealthDetailed {
   connected: boolean;
   schemaReady: boolean;
@@ -208,16 +295,67 @@ export async function getBookmarksCollection(): Promise<Collection<BookmarkDocum
   return db.collection<BookmarkDocument>('bookmarks');
 }
 
+export async function getRootAdminsCollection(): Promise<Collection<RootAdminDocument>> {
+  const db = await getDb();
+  return db.collection<RootAdminDocument>('root_admins');
+}
+
+export async function getRootAdminSessionsCollection(): Promise<Collection<RootAdminSessionDocument>> {
+  const db = await getDb();
+  return db.collection<RootAdminSessionDocument>('root_admin_sessions');
+}
+
+export async function getSuperAdminsCollection(): Promise<Collection<SuperAdminDocument>> {
+  const db = await getDb();
+  return db.collection<SuperAdminDocument>('super_admins');
+}
+
+export async function getSuperAdminSessionsCollection(): Promise<Collection<SuperAdminSessionDocument>> {
+  const db = await getDb();
+  return db.collection<SuperAdminSessionDocument>('super_admin_sessions');
+}
+
+export async function getSessionsCollection(): Promise<Collection<SuperAdminSessionDocument>> {
+  return getSuperAdminSessionsCollection();
+}
+
+export async function getUsersCollection(): Promise<Collection<UserDocument>> {
+  const db = await getDb();
+  return db.collection<UserDocument>('users');
+}
+
+export async function getUserSessionsCollection(): Promise<Collection<UserSessionDocument>> {
+  const db = await getDb();
+  return db.collection<UserSessionDocument>('user_sessions');
+}
+
+export async function getAuditLogsCollection(): Promise<Collection<AuditLogDocument>> {
+  const db = await getDb();
+  return db.collection<AuditLogDocument>('audit_logs');
+}
+
+async function createIndexSafely(collection: any, spec: any, options: any): Promise<void> {
+  try {
+    await collection.createIndex(spec, options);
+  } catch (err: any) {
+    if (err?.code === 85) {
+      return; // Index already exists with another name
+    }
+    throw err;
+  }
+}
+
 export async function initIndexes(dbInstance?: Db): Promise<void> {
   const db = dbInstance || (await getDb());
 
   // 1. Titles indexes
   const titles = db.collection<TitleDocument>('titles');
-  await titles.createIndex({ ownerId: 1, mediaType: 1, createdAt: -1 }, { name: 'idx_titles_owner_media_created' });
-  await titles.createIndex({ ownerId: 1, englishTitle: 1 }, { name: 'idx_titles_owner_english_title' });
-  await titles.createIndex({ ownerId: 1, releaseYear: -1 }, { name: 'idx_titles_owner_year' });
-  await titles.createIndex({ ownerId: 1, createdAt: -1 }, { name: 'idx_titles_owner_created' });
-  await titles.createIndex(
+  await createIndexSafely(titles, { ownerId: 1, mediaType: 1, createdAt: -1 }, { name: 'idx_titles_owner_media_created' });
+  await createIndexSafely(titles, { ownerId: 1, englishTitle: 1 }, { name: 'idx_titles_owner_english_title' });
+  await createIndexSafely(titles, { ownerId: 1, releaseYear: -1 }, { name: 'idx_titles_owner_year' });
+  await createIndexSafely(titles, { ownerId: 1, createdAt: -1 }, { name: 'idx_titles_owner_created' });
+  await createIndexSafely(
+    titles,
     { ownerId: 1, 'externalSources.provider': 1, 'externalSources.externalId': 1 },
     {
       name: 'uq_titles_owner_provider_external_id',
@@ -228,25 +366,100 @@ export async function initIndexes(dbInstance?: Db): Promise<void> {
 
   // 2. Collections indexes
   const collections = db.collection<CollectionDocument>('collections');
-  // Unique compound index on ownerId and normalizedName (trimmed and lowercased)
-  await collections.createIndex(
+  await createIndexSafely(
+    collections,
     { ownerId: 1, normalizedName: 1 },
     { name: 'uq_collections_owner_normalized_name', unique: true }
   );
-  await collections.createIndex({ ownerId: 1, createdAt: 1 }, { name: 'idx_collections_owner_created' });
-  await collections.createIndex({ 'items.titleId': 1 }, { name: 'idx_collections_items_title_id' });
+  await createIndexSafely(collections, { ownerId: 1, createdAt: 1 }, { name: 'idx_collections_owner_created' });
+  await createIndexSafely(collections, { 'items.titleId': 1 }, { name: 'idx_collections_items_title_id' });
 
   // 3. Bookmarks indexes
   const bookmarks = db.collection<BookmarkDocument>('bookmarks');
-  await bookmarks.createIndex(
+  await createIndexSafely(
+    bookmarks,
     { ownerId: 1, titleId: 1 },
     { name: 'uq_bookmarks_owner_title', unique: true }
   );
-  await bookmarks.createIndex({ ownerId: 1, status: 1, updatedAt: -1 }, { name: 'idx_bookmarks_owner_status_updated' });
-  await bookmarks.createIndex({ ownerId: 1, personalRating: -1 }, { name: 'idx_bookmarks_owner_rating' });
-  await bookmarks.createIndex({ ownerId: 1, priority: -1 }, { name: 'idx_bookmarks_owner_priority' });
-  await bookmarks.createIndex({ ownerId: 1, progress: -1 }, { name: 'idx_bookmarks_owner_progress' });
+  await createIndexSafely(bookmarks, { ownerId: 1, status: 1, updatedAt: -1 }, { name: 'idx_bookmarks_owner_status_updated' });
+  await createIndexSafely(bookmarks, { ownerId: 1, personalRating: -1 }, { name: 'idx_bookmarks_owner_rating' });
+  await createIndexSafely(bookmarks, { ownerId: 1, priority: -1 }, { name: 'idx_bookmarks_owner_priority' });
+  await createIndexSafely(bookmarks, { ownerId: 1, progress: -1 }, { name: 'idx_bookmarks_owner_progress' });
+
+  // 4. Root Admin indexes
+  const rootAdmins = db.collection<RootAdminDocument>('root_admins');
+  await createIndexSafely(
+    rootAdmins,
+    { email: 1 },
+    { name: 'uq_root_admins_email', unique: true }
+  );
+  await createIndexSafely(
+    rootAdmins,
+    { username: 1 },
+    { name: 'uq_root_admins_username', unique: true, partialFilterExpression: { username: { $type: 'string' } } }
+  );
+
+  const rootAdminSessions = db.collection<RootAdminSessionDocument>('root_admin_sessions');
+  await createIndexSafely(
+    rootAdminSessions,
+    { sessionTokenHash: 1 },
+    { name: 'uq_root_admin_sessions_token_hash', unique: true }
+  );
+  await createIndexSafely(rootAdminSessions, { rootAdminId: 1 }, { name: 'idx_root_admin_sessions_admin_id' });
+  await createIndexSafely(rootAdminSessions, { expiresAt: 1 }, { name: 'idx_root_admin_sessions_expires_at' });
+
+  // 5. Super Admin indexes
+  const superAdmins = db.collection<SuperAdminDocument>('super_admins');
+  await createIndexSafely(
+    superAdmins,
+    { email: 1 },
+    { name: 'uq_super_admins_email', unique: true }
+  );
+  await createIndexSafely(
+    superAdmins,
+    { username: 1 },
+    { name: 'uq_super_admins_username', unique: true, partialFilterExpression: { username: { $type: 'string' } } }
+  );
+
+  const superAdminSessions = db.collection<SuperAdminSessionDocument>('super_admin_sessions');
+  await createIndexSafely(
+    superAdminSessions,
+    { sessionTokenHash: 1 },
+    { name: 'uq_sessions_token_hash', unique: true }
+  );
+  await createIndexSafely(superAdminSessions, { adminId: 1 }, { name: 'idx_sessions_admin_id' });
+  await createIndexSafely(superAdminSessions, { expiresAt: 1 }, { name: 'idx_sessions_expires_at' });
+
+  // 6. Users indexes
+  const users = db.collection<UserDocument>('users');
+  await createIndexSafely(
+    users,
+    { email: 1 },
+    { name: 'uq_users_email', unique: true }
+  );
+  await createIndexSafely(
+    users,
+    { username: 1 },
+    { name: 'uq_users_username', unique: true }
+  );
+
+  const userSessions = db.collection<UserSessionDocument>('user_sessions');
+  await createIndexSafely(
+    userSessions,
+    { sessionTokenHash: 1 },
+    { name: 'uq_user_sessions_token_hash', unique: true }
+  );
+  await createIndexSafely(userSessions, { userId: 1 }, { name: 'idx_user_sessions_user_id' });
+  await createIndexSafely(userSessions, { expiresAt: 1 }, { name: 'idx_user_sessions_expires_at' });
+
+  // 7. Audit Log indexes
+  const auditLogs = db.collection<AuditLogDocument>('audit_logs');
+  await createIndexSafely(auditLogs, { timestamp: -1 }, { name: 'idx_audit_logs_timestamp' });
+  await createIndexSafely(auditLogs, { actorId: 1, timestamp: -1 }, { name: 'idx_audit_logs_actor' });
+  await createIndexSafely(auditLogs, { targetId: 1, timestamp: -1 }, { name: 'idx_audit_logs_target' });
+  await createIndexSafely(auditLogs, { eventType: 1, timestamp: -1 }, { name: 'idx_audit_logs_event_type' });
 }
+
 
 export async function checkHealthDetailed(): Promise<MongoHealthDetailed> {
   const sanitizedHost = sanitizeMongoUri(config.MONGODB_URI);

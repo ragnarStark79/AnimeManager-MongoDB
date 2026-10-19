@@ -163,3 +163,65 @@ export const importCommitSchema = z.object({
   initialBookmark: bookmarkCreateSchema.omit({ titleId: true }).optional(),
   collectionIds: z.array(z.string().uuid()).optional().default([]),
 });
+
+export const loginInputSchema = z.object({
+  email: z.string().trim().min(1, 'Email is required').email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export const registerUserInputSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username cannot exceed 30 characters')
+      .regex(/^[a-zA-Z0-9_-]+$/, 'Username may only contain letters, numbers, underscores, and dashes'),
+    displayName: z
+      .string()
+      .trim()
+      .min(1, 'Full name is required')
+      .max(100, 'Name cannot exceed 100 characters'),
+    email: z.string().trim().min(1, 'Email is required').email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters long'),
+    confirmPassword: z.string().min(1, 'Password confirmation is required'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export const createSuperAdminSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username cannot exceed 30 characters')
+      .regex(/^[a-zA-Z0-9_-]+$/, 'Username may only contain letters, numbers, underscores, and dashes')
+      .optional(),
+    email: z.string().trim().min(1, 'Email is required').email('Invalid email address'),
+    displayName: z.string().trim().min(1, 'Full name is required').max(100, 'Name cannot exceed 100 characters'),
+    password: z.string().min(8, 'Password must be at least 8 characters long'),
+    confirmPassword: z.string().min(1, 'Password confirmation is required'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export const updateSuperAdminStatusSchema = z.object({
+  status: z.enum(['active', 'disabled'], {
+    errorMap: () => ({ message: 'Status must be active or disabled' }),
+  }),
+  reason: z.string().trim().max(255).optional(),
+});
+
+export const updateUserStatusSchema = z.object({
+  status: z.enum(['active', 'restricted', 'disabled', 'deleted'], {
+    errorMap: () => ({ message: 'Status must be active, restricted, disabled, or deleted' }),
+  }),
+  reason: z.string().trim().max(255).optional(),
+});
+
+
