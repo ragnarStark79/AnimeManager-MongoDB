@@ -1,6 +1,10 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
+import { LoginPage }         from '../pages/LoginPage';
+import { RegisterPage }      from '../pages/RegisterPage';
+import { AdministratorPage } from '../pages/AdministratorPage';
+import { SuperAdminPage }    from '../pages/SuperAdminPage';
 import { Dashboard }       from '../pages/Dashboard';
 import { BookmarksPage }   from '../pages/BookmarksPage';
 import { MyListPage }      from '../pages/MyListPage';
@@ -15,8 +19,14 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="administrator" element={<AdministratorPage />} />
+        <Route path="superadmin" element={<SuperAdminPage />} />
         <Route element={<AppShell />}>
           <Route index            element={<Dashboard />} />
+
+
           <Route path="bookmarks"   element={<BookmarksPage />} />
           <Route path="my-list"     element={<MyListPage />} />
           <Route path="collections" element={<CollectionsPage />} />

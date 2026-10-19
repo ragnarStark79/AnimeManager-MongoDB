@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings,
@@ -12,6 +13,8 @@ import {
   RefreshCw,
   HardDrive,
   Info,
+  LogOut,
+  Shield,
 } from 'lucide-react';
 import { GlassCard, Button, Badge } from '../components/ui';
 import { api, type ApiError } from '../lib/api-client';
@@ -20,8 +23,10 @@ import './Placeholder.css';
 
 /* Phase 05 Full-Stack Integration. (Historical note: No options are functional in this phase prior to Phase 05). */
 export function SettingsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { token, ownerId, email, setToken, logout, isDevAuth, refreshDevToken, error: authError } = useAuth();
+  const { user, token, ownerId, email, displayName, setToken, logout, isDevAuth, refreshDevToken, error: authError } = useAuth();
+
 
   const [customToken, setCustomToken] = useState(token || '');
   const [isRefreshingDevToken, setIsRefreshingDevToken] = useState(false);
@@ -235,8 +240,12 @@ export function SettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
             <div style={{ padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', background: 'var(--surface-glass)', border: '1px solid var(--border-subtle)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Active Owner UUID</span>
-                {isDevAuth ? (
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Active Owner UUID & Session</span>
+                {user ? (
+                  <Badge variant="primary" size="sm">
+                    {user.role === 'root_admin' ? 'Root Admin' : user.role === 'superadmin' ? 'Super Admin' : 'Ordinary User'}
+                  </Badge>
+                ) : isDevAuth ? (
                   <Badge variant="warning" size="sm">Local Development</Badge>
                 ) : ownerId ? (
                   <Badge variant="primary" size="sm">Authenticated</Badge>
@@ -244,17 +253,53 @@ export function SettingsPage() {
                   <Badge variant="default" size="sm">Unauthenticated</Badge>
                 )}
               </div>
-              <code style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-primary)' }}>
-                {ownerId || 'Not authenticated'}
-              </code>
-              <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
-                {isDevAuth
-                  ? 'Active session is using isolated local development owner (00000000-0000-0000-0000-000000000001).'
-                  : email
-                  ? `Email: ${email}`
-                  : 'Custom authenticated session.'}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-primary)' }}>
+                    {email || 'Not logged in'}
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    {displayName || 'Library Owner'} • Scoped to owner <code style={{ fontSize: '11px' }}>{ownerId || '00000000-0000-0000-0000-000000000001'}</code>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  {user?.role === 'root_admin' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      iconLeft={<Shield size={14} />}
+                      onClick={() => navigate('/administrator')}
+                    >
+                      Root Admin Portal
+                    </Button>
+                  )}
+                  {user?.role === 'superadmin' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      iconLeft={<Shield size={14} />}
+                      onClick={() => navigate('/superadmin')}
+                    >
+                      Super Admin Portal
+                    </Button>
+                  )}
+                  {(user || ownerId) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      iconLeft={<LogOut size={14} />}
+                      onClick={async () => {
+                        await logout();
+                        navigate('/login');
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
+
 
             {authError && (
               <div
@@ -271,16 +316,16 @@ export function SettingsPage() {
               </div>
             )}
 
-            <form onSubmit={handleSaveToken} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <form onSubmit={handleSaveToken} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
               <label htmlFor="custom-token-input" style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
-                Bearer JWT Token (Local Storage)
+                Legacy Bearer Token Fallback (Phase 14 Bridge)
               </label>
               <textarea
                 id="custom-token-input"
                 rows={2}
                 className="title-tracking-input"
                 style={{ fontSize: '11px', fontFamily: 'monospace' }}
-                placeholder="Paste your Bearer JWT session token here..."
+                placeholder="Optional: Paste a legacy Bearer JWT session token here..."
                 value={customToken}
                 onChange={(e) => setCustomToken(e.target.value)}
               />
@@ -310,6 +355,7 @@ export function SettingsPage() {
             </form>
           </div>
         </GlassCard>
+
 
         {/* ── Section 3: System Status & Infrastructure ── */}
         <GlassCard padding="md">

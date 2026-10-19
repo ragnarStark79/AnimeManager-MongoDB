@@ -11,9 +11,34 @@ import type {
   ImportSearchResultItem,
   MediaType,
   BookmarkStatus,
+  CreateSuperAdminInput,
+  UpdateSuperAdminStatusInput,
+  UpdateUserStatusInput,
+  RegisterUserInput,
+  LoginInput,
+  SuperAdminProfile,
+  RootAdminProfile,
+  ManagedUser,
+  AuditEvent,
+  AuthUser,
+  UserStatus,
 } from '@animemanager/shared';
 
-export type { ImportSearchResultItem, ImportDraft };
+export type {
+  ImportSearchResultItem,
+  ImportDraft,
+  CreateSuperAdminInput,
+  UpdateSuperAdminStatusInput,
+  UpdateUserStatusInput,
+  RegisterUserInput,
+  LoginInput,
+  SuperAdminProfile,
+  RootAdminProfile,
+  ManagedUser,
+  AuditEvent,
+  AuthUser,
+  UserStatus,
+};
 
 export interface SingleResponse<T> {
   data: T;
@@ -237,9 +262,11 @@ class ApiClient {
     }
 
     const res = await fetch(url, {
+      credentials: 'include',
       ...options,
       headers,
     });
+
 
     if (res.status === 204) {
       return undefined as unknown as T;
@@ -483,11 +510,144 @@ class ApiClient {
 
   // --- Auth ---
   auth = {
+    register: async (input: RegisterUserInput): Promise<{ user: AuthUser }> => {
+      const res = await this.request<SingleResponse<{ user: AuthUser }>>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return res.data;
+    },
+
+    login: async (credentials: LoginInput): Promise<{ user: AuthUser }> => {
+      const res = await this.request<SingleResponse<{ user: AuthUser }>>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+      return res.data;
+    },
+
+    getMe: async (): Promise<{ user: AuthUser }> => {
+      const res = await this.request<SingleResponse<{ user: AuthUser }>>('/auth/me');
+      return res.data;
+    },
+
+    logout: async (): Promise<void> => {
+      await this.request<SingleResponse<{ message: string }>>('/auth/logout', {
+        method: 'POST',
+      });
+    },
+
     getDevSession: async (): Promise<{ token: string; ownerId: string; email: string; expiresIn: number; mode: string }> => {
       const res = await this.request<SingleResponse<{ token: string; ownerId: string; email: string; expiresIn: number; mode: string }>>('/auth/dev-session');
       return res.data;
     },
   };
+
+  // --- Admin Portal ---
+  admin = {
+    // ── Root Admin Only ──
+    listSuperAdmins: async (): Promise<SuperAdminProfile[]> => {
+      const res = await this.request<SingleResponse<SuperAdminProfile[]>>('/admin/super-admins');
+      return res.data;
+    },
+
+    createSuperAdmin: async (input: CreateSuperAdminInput): Promise<SuperAdminProfile> => {
+      const res = await this.request<SingleResponse<SuperAdminProfile>>('/admin/super-admins', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return res.data;
+    },
+
+    updateSuperAdminStatus: async (
+      id: string,
+      status: 'active' | 'disabled'
+    ): Promise<SuperAdminProfile> => {
+      const res = await this.request<SingleResponse<SuperAdminProfile>>(`/admin/super-admins/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      return res.data;
+    },
+
+    deleteSuperAdmin: async (id: string): Promise<void> => {
+      await this.request<SingleResponse<{ message: string }>>(`/admin/super-admins/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    revokeSuperAdminSessions: async (id: string): Promise<void> => {
+      await this.request<SingleResponse<{ message: string }>>(`/admin/super-admins/${id}/revoke-sessions`, {
+        method: 'POST',
+      });
+    },
+
+    getAuditLogs: async (params?: { targetType?: string; actorRole?: string; eventType?: string; limit?: number; offset?: number }): Promise<{
+      items: AuditEvent[];
+      total: number;
+      earliestHistory: string | null;
+    }> => {
+      const sp = new URLSearchParams();
+      if (params?.targetType) sp.set('targetType', params.targetType);
+      if (params?.actorRole) sp.set('actorRole', params.actorRole);
+      if (params?.eventType) sp.set('eventType', params.eventType);
+      if (params?.limit) sp.set('limit', String(params.limit));
+      if (params?.offset) sp.set('offset', String(params.offset));
+      const qs = sp.toString();
+      const res = await this.request<{ data: AuditEvent[]; pagination: { total: number }; earliestHistory: string | null }>(`/admin/audit-logs${qs ? `?${qs}` : ''}`);
+      return { items: res.data, total: res.pagination?.total || res.data?.length || 0, earliestHistory: res.earliestHistory };
+    },
+
+    getSystemStats: async (): Promise<any> => {
+      const res = await this.request<SingleResponse<any>>('/admin/system-stats');
+      return res.data;
+    },
+
+    // ── Root Admin & Super Admin: User Management ──
+    listUsers: async (): Promise<ManagedUser[]> => {
+      const res = await this.request<SingleResponse<ManagedUser[]>>('/admin/users');
+      return res.data;
+    },
+
+    getUserById: async (id: string): Promise<ManagedUser> => {
+      const res = await this.request<SingleResponse<ManagedUser>>(`/admin/users/${id}`);
+      return res.data;
+    },
+
+    updateUserStatus: async (
+      id: string,
+      status: UserStatus,
+      reason?: string
+    ): Promise<ManagedUser> => {
+      const res = await this.request<SingleResponse<ManagedUser>>(`/admin/users/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, reason }),
+      });
+      return res.data;
+    },
+
+    deleteUser: async (id: string): Promise<void> => {
+      await this.request<SingleResponse<{ message: string }>>(`/admin/users/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    revokeUserSessions: async (id: string): Promise<void> => {
+      await this.request<SingleResponse<{ message: string }>>(`/admin/users/${id}/revoke-sessions`, {
+        method: 'POST',
+      });
+    },
+
+    getUserActivity: async (params?: { limit?: number; offset?: number }): Promise<{ items: AuditEvent[]; total: number }> => {
+      const sp = new URLSearchParams();
+      if (params?.limit) sp.set('limit', String(params.limit));
+      if (params?.offset) sp.set('offset', String(params.offset));
+      const qs = sp.toString();
+      const res = await this.request<{ data: AuditEvent[]; pagination: { total: number } }>(`/admin/user-activity${qs ? `?${qs}` : ''}`);
+      return { items: res.data, total: res.pagination?.total || res.data?.length || 0 };
+    },
+  };
 }
+
 
 export const api = new ApiClient();

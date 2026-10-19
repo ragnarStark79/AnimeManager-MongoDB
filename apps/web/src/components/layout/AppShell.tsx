@@ -1,5 +1,5 @@
-import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
+import { useAuth } from '../../lib/auth-context';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
@@ -17,7 +17,39 @@ const pageTitles: Record<string, string> = {
 
 export function AppShell() {
   const location = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
   const pageTitle = pageTitles[location.pathname] ?? (location.pathname.startsWith('/titles/') ? 'Title Detail' : 'AnimeManager');
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#0a0a0f',
+        }}
+        aria-label="Checking active session..."
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            border: '3px solid rgba(255, 255, 255, 0.1)',
+            borderTopColor: '#6366f1',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
 
   return (
     <div className="app-shell">
