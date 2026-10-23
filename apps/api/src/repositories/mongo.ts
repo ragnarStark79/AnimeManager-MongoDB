@@ -180,6 +180,23 @@ export interface AuditLogDocument {
   timestamp: Date;
 }
 
+export interface AccountMfaDocument {
+  _id: string; // UUID string identifier
+  accountId: string; // References UserDocument._id, SuperAdminDocument._id, or RootAdminDocument._id
+  accountRole: 'user' | 'superadmin' | 'root_admin';
+  totpEnabled: boolean;
+  encryptedTotpSecret: string | null; // AES-256-GCM encrypted active secret
+  pendingEncryptedTotpSecret: string | null; // AES-256-GCM encrypted pending secret during enrollment
+  pendingSetupExpiresAt: Date | null;
+  lastUsedTimeStep: number | null; // RFC 6238 time step to prevent replay attacks
+  recoveryCodeHashes: string[]; // SHA-256 hashes of single-use recovery codes
+  enrolledAt: Date | null;
+  lastUsedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+
 
 
 export interface MongoHealthDetailed {
@@ -334,6 +351,12 @@ export async function getAuditLogsCollection(): Promise<Collection<AuditLogDocum
   return db.collection<AuditLogDocument>('audit_logs');
 }
 
+export async function getAccountMfaCollection(): Promise<Collection<AccountMfaDocument>> {
+  const db = await getDb();
+  return db.collection<AccountMfaDocument>('account_mfa');
+}
+
+
 async function createIndexSafely(collection: any, spec: any, options: any): Promise<void> {
   try {
     await collection.createIndex(spec, options);
@@ -458,6 +481,15 @@ export async function initIndexes(dbInstance?: Db): Promise<void> {
   await createIndexSafely(auditLogs, { actorId: 1, timestamp: -1 }, { name: 'idx_audit_logs_actor' });
   await createIndexSafely(auditLogs, { targetId: 1, timestamp: -1 }, { name: 'idx_audit_logs_target' });
   await createIndexSafely(auditLogs, { eventType: 1, timestamp: -1 }, { name: 'idx_audit_logs_event_type' });
+
+  // 8. Account MFA indexes
+  const accountMfa = db.collection<AccountMfaDocument>('account_mfa');
+  await createIndexSafely(
+    accountMfa,
+    { accountId: 1, accountRole: 1 },
+    { name: 'uq_account_mfa_account_role', unique: true }
+  );
+  await createIndexSafely(accountMfa, { accountId: 1 }, { name: 'idx_account_mfa_account_id' });
 }
 
 

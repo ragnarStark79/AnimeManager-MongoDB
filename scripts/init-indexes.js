@@ -173,6 +173,10 @@ const PLANNED_INDEXES = {
     { key: { targetId: 1, timestamp: -1 }, name: 'idx_audit_logs_target' },
     { key: { eventType: 1, timestamp: -1 }, name: 'idx_audit_logs_event_type' },
   ],
+  account_mfa: [
+    { key: { accountId: 1, accountRole: 1 }, name: 'uq_account_mfa_account_role', unique: true },
+    { key: { accountId: 1 }, name: 'idx_account_mfa_account_id' },
+  ],
 };
 
 

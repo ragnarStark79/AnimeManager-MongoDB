@@ -82,6 +82,16 @@ function createEnvSchema(sourceEnv: NodeJS.ProcessEnv) {
       if (val === 'false' || val === false) return false;
       return undefined;
     }, z.boolean().optional()),
+    MFA_ENCRYPTION_KEY: z.preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed.length > 0 ? trimmed : undefined;
+        }
+        return val;
+      },
+      z.string().min(32, 'MFA_ENCRYPTION_KEY must be at least 32 characters').optional()
+    ),
   });
 }
 
@@ -133,6 +143,16 @@ export function loadConfig(envInput?: NodeJS.ProcessEnv) {
     }
     if (result.data.MONGODB_URI.includes('localhost') || result.data.MONGODB_URI.includes('127.0.0.1')) {
       throw new Error('[Config Error] Fatal: Production environment cannot use localhost MongoDB.');
+    }
+    if (
+      result.data.MFA_ENCRYPTION_KEY &&
+      (result.data.MFA_ENCRYPTION_KEY === '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' ||
+        result.data.MFA_ENCRYPTION_KEY.includes('development') ||
+        result.data.MFA_ENCRYPTION_KEY.includes('test'))
+    ) {
+      throw new Error(
+        '[Config Error] Fatal: Insecure default MFA_ENCRYPTION_KEY cannot be used in production environments.'
+      );
     }
 
     // Remediation A: Explicit production database name validation

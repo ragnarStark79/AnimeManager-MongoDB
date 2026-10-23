@@ -18,6 +18,7 @@ import {
   Activity,
   Eye,
   ShieldAlert,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import {
@@ -180,6 +181,12 @@ export function SuperAdminPage() {
             <span>{user?.email}</span>
             <Badge variant="primary" size="sm">Super Admin</Badge>
           </div>
+
+          <Link to="/settings" style={{ textDecoration: 'none' }}>
+            <Button variant="ghost" size="sm" iconLeft={<Settings size={14} />}>
+              Settings & 2FA
+            </Button>
+          </Link>
 
           <Button
             variant="ghost"

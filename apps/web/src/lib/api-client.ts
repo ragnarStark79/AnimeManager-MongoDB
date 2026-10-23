@@ -22,6 +22,11 @@ import type {
   AuditEvent,
   AuthUser,
   UserStatus,
+  AuthRole,
+  MfaStatusResponse,
+  MfaSetupResponse,
+  MfaVerifySetupResponse,
+  MfaChallengeResponse,
 } from '@animemanager/shared';
 
 export type {
@@ -38,6 +43,11 @@ export type {
   AuditEvent,
   AuthUser,
   UserStatus,
+  AuthRole,
+  MfaStatusResponse,
+  MfaSetupResponse,
+  MfaVerifySetupResponse,
+  MfaChallengeResponse,
 };
 
 export interface SingleResponse<T> {
@@ -518,12 +528,66 @@ class ApiClient {
       return res.data;
     },
 
-    login: async (credentials: LoginInput): Promise<{ user: AuthUser }> => {
-      const res = await this.request<SingleResponse<{ user: AuthUser }>>('/auth/login', {
+    login: async (
+      credentials: LoginInput
+    ): Promise<{ user?: AuthUser; mfaRequired?: boolean; challengeToken?: string; role?: AuthRole }> => {
+      const res = await this.request<
+        SingleResponse<{ user?: AuthUser; mfaRequired?: boolean; challengeToken?: string; role?: AuthRole }>
+      >('/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       });
       return res.data;
+    },
+
+    mfa: {
+      getStatus: async (): Promise<MfaStatusResponse> => {
+        const res = await this.request<SingleResponse<MfaStatusResponse>>('/auth/mfa/status');
+        return res.data;
+      },
+
+      setup: async (password: string): Promise<MfaSetupResponse> => {
+        const res = await this.request<SingleResponse<MfaSetupResponse>>('/auth/mfa/setup', {
+          method: 'POST',
+          body: JSON.stringify({ password }),
+        });
+        return res.data;
+      },
+
+      verifySetup: async (code: string): Promise<MfaVerifySetupResponse> => {
+        const res = await this.request<SingleResponse<MfaVerifySetupResponse>>('/auth/mfa/verify-setup', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+        return res.data;
+      },
+
+      disable: async (password: string, code: string): Promise<{ message: string }> => {
+        const res = await this.request<SingleResponse<{ message: string }>>('/auth/mfa/disable', {
+          method: 'POST',
+          body: JSON.stringify({ password, code }),
+        });
+        return res.data;
+      },
+
+      regenerateRecoveryCodes: async (password: string, code: string): Promise<{ recoveryCodes: string[] }> => {
+        const res = await this.request<SingleResponse<{ recoveryCodes: string[] }>>(
+          '/auth/mfa/recovery-codes/regenerate',
+          {
+            method: 'POST',
+            body: JSON.stringify({ password, code }),
+          }
+        );
+        return res.data;
+      },
+
+      challengeVerify: async (challengeToken: string, code: string): Promise<{ user: AuthUser }> => {
+        const res = await this.request<SingleResponse<{ user: AuthUser }>>('/auth/mfa/challenge-verify', {
+          method: 'POST',
+          body: JSON.stringify({ challengeToken, code }),
+        });
+        return res.data;
+      },
     },
 
     getMe: async (): Promise<{ user: AuthUser }> => {

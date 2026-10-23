@@ -10,6 +10,8 @@ import { superAdminsRepository } from '../repositories/super-admins.repository.j
 import { usersRepository } from '../repositories/users.repository.js';
 import { sessionsRepository } from '../repositories/sessions.repository.js';
 import { auditLogsRepository } from '../repositories/audit-logs.repository.js';
+import { accountMfaRepository } from '../repositories/account-mfa.repository.js';
+import { generateMfaChallengeToken } from '../utils/mfa-crypto.js';
 import { recordFailedLogin, recordSuccessfulLogin } from '../middleware/login-rate-limit.middleware.js';
 
 export const DEV_OWNER_ID = '00000000-0000-0000-0000-000000000001';
@@ -131,6 +133,32 @@ export const authController = {
           throw new UnauthorizedError('Root Administrator account is disabled');
         }
 
+        // Check if two-step verification is active for this Root Administrator
+        const mfa = await accountMfaRepository.findByAccount(rootAdmin._id, 'root_admin');
+        if (mfa && mfa.totpEnabled) {
+          recordSuccessfulLogin(req);
+          const challengeToken = generateMfaChallengeToken({
+            accountId: rootAdmin._id,
+            role: 'root_admin',
+          });
+          await auditLogsRepository.recordEvent({
+            eventType: 'mfa.challenge_issued',
+            actorId: rootAdmin._id,
+            actorRole: 'root_admin',
+            targetId: rootAdmin._id,
+            action: 'Two-step verification challenge issued after password validation',
+            outcome: 'success',
+          });
+          res.status(200).json({
+            data: {
+              mfaRequired: true,
+              challengeToken,
+              role: 'root_admin',
+            },
+          });
+          return;
+        }
+
         recordSuccessfulLogin(req);
         await rootAdminsRepository.updateLastLogin(rootAdmin._id);
 
@@ -177,6 +205,32 @@ export const authController = {
           throw new UnauthorizedError('Administrator account is disabled');
         }
 
+        // Check if two-step verification is active for this Super Administrator
+        const mfa = await accountMfaRepository.findByAccount(superAdmin._id, 'superadmin');
+        if (mfa && mfa.totpEnabled) {
+          recordSuccessfulLogin(req);
+          const challengeToken = generateMfaChallengeToken({
+            accountId: superAdmin._id,
+            role: 'superadmin',
+          });
+          await auditLogsRepository.recordEvent({
+            eventType: 'mfa.challenge_issued',
+            actorId: superAdmin._id,
+            actorRole: 'superadmin',
+            targetId: superAdmin._id,
+            action: 'Two-step verification challenge issued after password validation',
+            outcome: 'success',
+          });
+          res.status(200).json({
+            data: {
+              mfaRequired: true,
+              challengeToken,
+              role: 'superadmin',
+            },
+          });
+          return;
+        }
+
         recordSuccessfulLogin(req);
         await superAdminsRepository.updateLastLogin(superAdmin._id);
 
@@ -221,6 +275,33 @@ export const authController = {
         if (user.status === 'disabled' || user.status === 'deleted') {
           recordFailedLogin(req);
           throw new UnauthorizedError('User account is disabled or inactive');
+        }
+
+        // Check if two-step verification is active for this Ordinary User
+        const mfa = await accountMfaRepository.findByAccount(user._id, 'user');
+        if (mfa && mfa.totpEnabled) {
+          recordSuccessfulLogin(req);
+          const challengeToken = generateMfaChallengeToken({
+            accountId: user._id,
+            role: 'user',
+          });
+          await auditLogsRepository.recordEvent({
+            eventType: 'mfa.challenge_issued',
+            actorId: user._id,
+            actorRole: 'user',
+            targetId: user._id,
+            targetType: 'user',
+            action: 'Two-step verification challenge issued after password validation',
+            outcome: 'success',
+          });
+          res.status(200).json({
+            data: {
+              mfaRequired: true,
+              challengeToken,
+              role: 'user',
+            },
+          });
+          return;
         }
 
         recordSuccessfulLogin(req);

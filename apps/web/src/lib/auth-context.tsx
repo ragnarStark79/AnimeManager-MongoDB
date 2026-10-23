@@ -11,6 +11,14 @@ interface JwtPayload {
   iss?: string;
 }
 
+export interface LoginResult {
+  success: boolean;
+  mfaRequired?: boolean;
+  challengeToken?: string;
+  role?: string;
+  error?: string;
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
@@ -26,7 +34,8 @@ interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   register: (input: RegisterUserInput) => Promise<boolean>;
-  login: (credentials: { email: string; password: string }) => Promise<boolean>;
+  login: (credentials: { email: string; password: string }) => Promise<LoginResult>;
+  completeMfaChallenge: (challengeToken: string, code: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setToken: (token: string | null) => void;
   refreshDevToken: () => Promise<boolean>;
@@ -131,19 +140,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Native login implementation
-  const login = useCallback(async (credentials: { email: string; password: string }): Promise<boolean> => {
+  const login = useCallback(async (credentials: { email: string; password: string }): Promise<LoginResult> => {
     try {
       setError(null);
       const res = await api.auth.login(credentials);
+      if (res && res.mfaRequired && res.challengeToken) {
+        return {
+          success: true,
+          mfaRequired: true,
+          challengeToken: res.challengeToken,
+          role: res.role,
+        };
+      }
       if (res && res.user) {
         setUser(res.user);
-        return true;
+        return { success: true };
       }
       throw new Error('Login failed: invalid response from server');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       setError(msg);
-      return false;
+      return { success: false, error: msg };
+    }
+  }, []);
+
+  // Complete MFA Challenge during login
+  const completeMfaChallenge = useCallback(async (challengeToken: string, code: string): Promise<boolean> => {
+    try {
+      setError(null);
+      const res = await api.auth.mfa.challengeVerify(challengeToken, code);
+      if (res && res.user) {
+        setUser(res.user);
+        return true;
+      }
+      throw new Error('Verification failed: invalid response from server');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Verification failed';
+      setError(msg);
+      throw err;
     }
   }, []);
 
@@ -241,6 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error,
       register,
       login,
+      completeMfaChallenge,
       logout,
       setToken,
       refreshDevToken,
@@ -261,6 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error,
       register,
       login,
+      completeMfaChallenge,
       logout,
       setToken,
       refreshDevToken,

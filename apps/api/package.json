@@ -8,8 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "node -e \"console.log('@animemanager/api: lint passed cleanly')\"",
-    "test": "NODE_ENV=test MONGODB_URI=mongodb://127.0.0.1:27017/animemanager_test node --test --test-concurrency=1 test/config-safeguards.test.js test/health.test.js test/init-indexes.test.js test/auth.test.js test/bookmarks.test.js test/collections.test.js test/connectivity-regression.test.js test/export.test.js test/hardening.test.js test/import-api.test.js test/titles.test.js test/super-admin-auth.test.js test/admin-portal.test.js test/user-registration-and-isolation.test.js",
-
+    "test": "NODE_ENV=test MONGODB_URI=mongodb://127.0.0.1:27017/animemanager_test node --test --test-concurrency=1 test/config-safeguards.test.js test/health.test.js test/init-indexes.test.js test/auth.test.js test/bookmarks.test.js test/collections.test.js test/connectivity-regression.test.js test/export.test.js test/hardening.test.js test/import-api.test.js test/titles.test.js test/super-admin-auth.test.js test/admin-portal.test.js test/user-registration-and-isolation.test.js test/mfa-two-factor.test.js",
     "test:atlas": "NODE_ENV=test node --test test/atlas-integration.test.js",
     "dev": "node --watch dist/server.js",
     "start": "node dist/server.js"
@@ -21,6 +20,8 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.21.0",
+    "otplib": "^13.5.0",
+    "qrcode": "^1.5.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -28,6 +29,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.5",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
     "supertest": "^7.0.0",
     "typescript": "^5.6.3"

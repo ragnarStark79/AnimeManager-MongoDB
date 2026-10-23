@@ -15,6 +15,11 @@ import {
   loginInputSchema,
   createSuperAdminSchema,
   updateSuperAdminStatusSchema,
+  mfaSetupInputSchema,
+  mfaVerifySetupInputSchema,
+  mfaChallengeVerifyInputSchema,
+  mfaDisableInputSchema,
+  mfaRegenerateRecoveryInputSchema,
 } from '../schemas/index.js';
 import {
   MediaType,
@@ -229,4 +234,36 @@ export interface AuditEvent {
   metadata?: Record<string, unknown>;
   timestamp: string;
 }
+
+// ── Two-Step Verification (MFA / TOTP) Types ──
+
+export type MfaSetupInput = z.infer<typeof mfaSetupInputSchema>;
+export type MfaVerifySetupInput = z.infer<typeof mfaVerifySetupInputSchema>;
+export type MfaChallengeVerifyInput = z.infer<typeof mfaChallengeVerifyInputSchema>;
+export type MfaDisableInput = z.infer<typeof mfaDisableInputSchema>;
+export type MfaRegenerateRecoveryInput = z.infer<typeof mfaRegenerateRecoveryInputSchema>;
+
+export interface MfaStatusResponse {
+  enabled: boolean;
+  enrolledAt: string | null;
+  recoveryCodesRemaining: number;
+}
+
+export interface MfaSetupResponse {
+  qrCodeDataUrl: string;
+  manualEntryKey: string;
+  expiresAt: string;
+}
+
+export interface MfaVerifySetupResponse {
+  success: boolean;
+  recoveryCodes: string[];
+}
+
+export interface MfaChallengeResponse {
+  mfaRequired: true;
+  challengeToken: string;
+  role: AuthRole;
+}
+
 
