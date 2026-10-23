@@ -99,8 +99,9 @@ Modifying, reordering, or deleting a collection never affects reading/watching p
 | **Database Platform** | MongoDB Atlas | Cluster 6.x | Cloud document persistence, compound B-tree indexes, replica sets |
 | **Validation & Schemas** | Zod | `^3.23.8` | Runtime schema validation for requests, environment, and domain models |
 | **Security Middleware** | Helmet & CORS | `^8.0.0` / `^2.8.5` | Security HTTP headers (HSTS, XSS) and strict origin normalization |
-| **Cryptography** | Node.js Crypto | Native Built-in | Scrypt password hashing, SHA-256 session token hashing, UUIDs |
-| **Testing Engine** | Node.js Test Runner | Native (`node --test`)| Built-in test execution runner (236 automated tests, 0 external test runners) |
+| **Cryptography** | Node.js Crypto | Native Built-in | Scrypt password hashing, SHA-256 session token hashing, AES-256-GCM MFA secret encryption |
+| **Two-Factor Auth (TOTP)** | otplib & qrcode | `^13.5.0` / `^1.5.4` | RFC 6238 TOTP verification, provisioning URI generation, and QR code rendering |
+| **Testing Engine** | Node.js Test Runner | Native (`node --test`)| Built-in test execution runner (230 automated tests, 0 external test runners) |
 | **HTTP Test Client** | Supertest | `^7.0.0` | In-memory integration testing against the Express application |
 | **Hosting Platform** | Vercel Serverless | Configuration Spec | Global edge static delivery and serverless function delegation |
 
@@ -351,7 +352,7 @@ flowchart TD
 
 ### Collection Summary
 
-The database schema consists of exactly **10 collections**:
+The database schema consists of exactly **11 collections**:
 
 | Collection | Purpose | Important Design Notes |
 | :--- | :--- | :--- |
@@ -364,11 +365,12 @@ The database schema consists of exactly **10 collections**:
 | **`super_admin_sessions`** | Active session tokens for Super Administrators | Stores SHA-256 token hashes. Indexed by `adminId` for mass revocation. |
 | **`root_admins`** | Infrastructure owner account | Created via CLI bootstrap. Governs Super Admins and views system audits. |
 | **`root_admin_sessions`** | Active session tokens for Root Administrators | Stores SHA-256 token hashes. Expiration-indexed. |
+| **`account_mfa`** | Two-step verification (TOTP) configuration & recovery codes | Scoped to `{ accountId, accountRole }`. AES-256-GCM encrypted secrets, SHA-256 recovery hashes. |
 | **`audit_logs`** | Immutable operational and security audit ledger | Append-only. Indexed by timestamp, actor, and event type. Privacy-scrubbed. |
 
 ### Indexing and Data Integrity
 
-The application provisions **29 targeted indexes** across all 10 collections via `scripts/init-indexes.js` and `apps/api/src/repositories/mongo.ts`:
+The application provisions **30 targeted indexes** across all 11 collections via `scripts/init-indexes.js` and `apps/api/src/repositories/mongo.ts`:
 - **Equality, Sort, Range (ESR) Compound Indexes:** Indexes such as `{ ownerId: 1, mediaType: 1, createdAt: -1 }` on `titles` satisfy tenant isolation (`ownerId`), category filtering (`mediaType`), and chronological ordering (`createdAt`) directly in B-tree leaf nodes without memory sorts.
 - **Unique Constraints:** Unconditionally enforced on `uq_users_email`, `uq_users_username`, `uq_collections_owner_normalized_name`, and `uq_bookmarks_owner_title`.
 - **Partial Filter Indexes:** `uq_titles_owner_provider_external_id` enforces uniqueness across `{ ownerId: 1, 'externalSources.provider': 1, 'externalSources.externalId': 1 }` with `partialFilterExpression: { 'externalSources.externalId': { $exists: true } }`. Manual entries without external IDs do not consume index space.
@@ -411,6 +413,18 @@ AnimeManager implements three distinct account roles with strictly enforced boun
 - **CSRF Origin Verification:** Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) authenticated via ambient session cookies must pass `isAllowedOrigin(req)`, which validates the `Origin` or `Referer` header against the whitelisted `CORS_ORIGIN`. Cross-origin mutations are rejected with HTTP 403.
 - **Brute-Force Rate Limiting:** `loginRateLimitMiddleware` enforces a sliding memory window of 15 minutes. Exceeding 5 failed login attempts from a client IP triggers a rate-limit lockout (HTTP 429).
 - **Multi-Tenant Data Isolation:** Every title, bookmark, and collection query unconditionally binds `{ ownerId: req.user.id }`. If a client injects a spoofed `ownerId` in the request body, the server completely ignores it and overwrites it with the authenticated session identity. Cross-user access returns HTTP 404.
+
+### Two-Step Verification (TOTP RFC 6238)
+
+AnimeManager supports authenticator-app-based two-step verification across all three roles (`user`, `superadmin`, and `root_admin`):
+
+- **Standards-Compliant TOTP:** Implements standard RFC 6238 Time-Based One-Time Passwords (SHA-1 HMAC, 30-second period, 6-digit output) with a tightly bounded clock-skew window (±1 step / 30 seconds). Fully compatible with standard authenticator apps including Google Authenticator, Microsoft Authenticator, 2FAS, Bitwarden, and 1Password.
+- **Authenticated Encryption at Rest (AES-256-GCM):** Active and pending TOTP secrets are encrypted before persistence in MongoDB using AES-256-GCM with a server-only key (`MFA_ENCRYPTION_KEY`). Nonces (12-byte IV) are randomly generated per encryption, and authentication tags (16-byte) prevent ciphertext tampering (`gcm$v1$<ivHex>$<tagHex>$<ciphertextHex>`). Plaintext secrets are never stored or logged.
+- **Atomic Replay Protection:** Verification tracks the RFC 6238 `lastUsedTimeStep` in MongoDB. Replayed OTP codes submitted within the same 30-second window are rejected, and concurrent race attempts cannot bypass verification.
+- **Single-Use Emergency Recovery Codes:** Upon enrollment, users receive 8 single-use recovery codes (`XXXXX-XXXXX`). Codes are stored only as SHA-256 hashes in MongoDB. When redeemed during login, codes are atomically consumed via `$pull`, preventing reuse. Users can regenerate recovery codes at any time after password and OTP confirmation.
+- **Two-Step Login Challenge:** Accounts with MFA enabled cannot obtain a session cookie with password verification alone. Instead, the server issues a signed, short-lived (5-minute) MFA challenge token (`type: 'mfa_challenge'`). The ambient `HttpOnly` session cookie is established only after validating the challenge token alongside a valid TOTP or recovery code. Challenge tokens cannot be used as Bearer tokens for API endpoints.
+- **Sensitive Action Safeguards:** Initiating enrollment, verifying setup, disabling 2FA, and regenerating recovery codes strictly require account password confirmation.
+- **Audit & Privacy Scrubbing:** Audit events record operational actions (`mfa_enrolled`, `mfa_challenge_created`, `mfa_disabled`, etc.) while strictly omitting OTP codes, secret keys, QR payloads, and recovery codes.
 
 ### Privacy-Preserving Auditing
 
@@ -617,10 +631,16 @@ All API routes are served under the `/api/v1` namespace (also aliased to `/v1` f
 | **System Diagnostics** | `GET /api/v1/health` | Health probe (checks database ping and core collections) | Public |
 | | `GET /api/v1/health/liveness` | Fast container liveness check | Public |
 | **Authentication & Identity** | `POST /api/v1/auth/register` | Register new ordinary user account | Public |
-| | `POST /api/v1/auth/login` | Authenticate credentials; sets `HttpOnly` session cookie | Public (Rate-Limited) |
+| | `POST /api/v1/auth/login` | Authenticate credentials; sets session cookie or returns MFA challenge | Public (Rate-Limited) |
 | | `GET /api/v1/auth/me` | Inspect active session profile | Authenticated |
 | | `POST /api/v1/auth/logout` | Terminate active session; clears cookie | Authenticated |
 | | `GET /api/v1/auth/dev-session`| Development-only session generator | Dev-only (Disabled in prod) |
+| **Two-Step Verification (MFA)** | `GET /api/v1/auth/mfa/status` | Retrieve current account 2FA status & recovery codes remaining | Authenticated |
+| | `POST /api/v1/auth/mfa/setup` | Begin enrollment; returns QR code data URL & manual setup key | Authenticated (Password Required) |
+| | `POST /api/v1/auth/mfa/verify-setup` | Confirm 6-digit TOTP code, enable 2FA, and issue 8 recovery codes | Authenticated |
+| | `POST /api/v1/auth/mfa/disable` | Securely disable 2FA | Authenticated (Password & OTP) |
+| | `POST /api/v1/auth/mfa/recovery-codes/regenerate` | Invalidate existing recovery codes and issue 8 fresh codes | Authenticated (Password & OTP) |
+| | `POST /api/v1/auth/mfa/challenge-verify` | Complete login challenge using 6-digit TOTP or recovery code; sets cookie | Public (Rate-Limited) |
 | **Media Titles** | `GET /api/v1/titles` | List owner's catalog with pagination, search, and filters | Authenticated (`user`) |
 | | `POST /api/v1/titles` | Manually catalog a new media title | Authenticated (`user`) |
 | | `GET /api/v1/titles/:id` | Retrieve title details by UUID | Authenticated (`user`) |
@@ -733,8 +753,9 @@ PORT=4000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
 
-# Authentication (Minimum 16 characters)
+# Authentication & Two-Step Verification
 JWT_SECRET=development-jwt-secret-min-16-chars-long!
+MFA_ENCRYPTION_KEY=development-mfa-encryption-key-32b-min!
 ENABLE_DEV_AUTH=true
 
 # MongoDB Configuration (Atlas or Local)
@@ -953,8 +974,8 @@ We welcome contributions from individual developers and teams. Follow these stru
 
 ### Planned Enhancements
 
+- **Passkeys & WebAuthn (FIDO2):** Biometric and hardware security key authentication (Phase 16.3).
 - **Redis Caching Layer:** Integrating an in-memory Redis cache (Upstash) between Vercel and MongoDB Atlas for popular public media catalog lookups.
-- **Multi-Factor Authentication (MFA):** Implementing TOTP two-factor authentication for Root Administrator and Super Administrator portals.
 - **OAuth2 Social Sign-In:** Adding Google and GitHub OAuth identity providers alongside native email/password authentication.
 
 ---

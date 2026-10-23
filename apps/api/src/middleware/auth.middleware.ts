@@ -134,6 +134,10 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         throw new UnauthorizedError('Invalid token claims: anonymous role not permitted for protected resources');
       }
 
+      if (decoded.type === 'mfa_challenge') {
+        throw new UnauthorizedError('Pending MFA challenge token cannot be used as an authenticated bearer token');
+      }
+
       req.user = {
         id: decoded.sub,
         email: decoded.email,

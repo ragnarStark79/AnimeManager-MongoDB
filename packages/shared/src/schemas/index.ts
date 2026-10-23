@@ -224,4 +224,47 @@ export const updateUserStatusSchema = z.object({
   reason: z.string().trim().max(255).optional(),
 });
 
+// ── Two-Step Verification (MFA / TOTP) Schemas ──
+
+export const mfaSetupInputSchema = z.object({
+  password: z.string().min(1, 'Password is required to initiate two-step verification setup'),
+});
+
+export const mfaVerifySetupInputSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(6, 'Verification code must be 6 digits')
+    .max(8, 'Verification code is invalid')
+    .regex(/^[0-9]+$/, 'Verification code must contain digits only'),
+});
+
+export const mfaChallengeVerifyInputSchema = z.object({
+  challengeToken: z.string().trim().min(1, 'MFA challenge token is required'),
+  code: z
+    .string()
+    .trim()
+    .min(6, 'Verification code must be at least 6 characters')
+    .max(30, 'Verification code is too long'),
+});
+
+export const mfaDisableInputSchema = z.object({
+  password: z.string().min(1, 'Password is required to disable two-step verification'),
+  code: z
+    .string()
+    .trim()
+    .min(6, 'Verification code or recovery code is required')
+    .max(30, 'Verification code is too long'),
+});
+
+export const mfaRegenerateRecoveryInputSchema = z.object({
+  password: z.string().min(1, 'Password is required to regenerate recovery codes'),
+  code: z
+    .string()
+    .trim()
+    .min(6, 'Verification code is required')
+    .max(30, 'Verification code is too long'),
+});
+
+
 
